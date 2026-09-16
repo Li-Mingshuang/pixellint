@@ -290,7 +290,21 @@ if (haveAtlas) {
 // replays it against the atlas, so the README animation is the game's actual
 // output rather than a hand-made illustration of it.
 if (process.argv.includes("--dump")) {
-  const n = parseInt(process.argv[process.argv.indexOf("--dump") + 1] || "48", 10);
+  const n = parseInt(process.argv[process.argv.indexOf("--dump") + 1] || "36", 10);
+
+  // Deterministic RNG for the recording. The game uses Math.random for spawn
+  // positions, particle velocities, casing tumble and so on, so an unseeded
+  // dump produces different frames on every run -- and therefore a README GIF
+  // that changes on every build. A generated artifact that is not reproducible
+  // cannot be checked against its source, which is the point of this repo.
+  let seed = 0x9e3779b9;
+  Math.random = () => {
+    seed ^= seed << 13; seed |= 0;
+    seed ^= seed >>> 17;
+    seed ^= seed << 5; seed |= 0;
+    return (seed >>> 0) / 4294967296;
+  };
+
   const frames = [];
   g.reset();
   for (let f = 0; f < n; f++) {
@@ -304,8 +318,12 @@ if (process.argv.includes("--dump")) {
     g.step(4);
     draws.length = 0;
     fills.length = 0;
+    ops.length = 0;
     g.render();
-    frames.push({ draws: draws.slice(), fills: fills.slice() });
+    // `ops` is the interleaved order. It matters: the compositor has to replay
+    // draws and fills in the order the game issued them, or the frame's opening
+    // full-canvas clear gets applied last and wipes the picture.
+    frames.push({ ops: ops.slice() });
   }
   g.setKey("KeyD", false);
   g.setKey("Space", false);

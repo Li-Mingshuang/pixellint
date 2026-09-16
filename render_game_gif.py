@@ -23,6 +23,8 @@ from export_game_atlas import ASSETS, GAME, HERE
 FRAMES = GAME / "frames.json"
 SCALE = 3
 FRAME_MS = 67
+DUMP_FRAMES = 36       # 36 x 67ms = 2.4s loop; enough to show the whole rhythm
+GIF_COLOURS = 64       # 128 pushed the file past a megabyte for no visible gain
 
 
 def load_atlas():
@@ -70,21 +72,46 @@ def parse_colour(col):
     return None
 
 
+def _stale() -> bool:
+    """True if frames.json is missing or older than the atlas it was made from.
+
+    Recording is the expensive half (~2s), so it is cached -- but caching it
+    unconditionally is how the README GIF ended up still showing a build with no
+    enemies in it after the enemy art landed. The cache has to be invalidated by
+    the thing it depends on.
+    """
+    if not FRAMES.exists():
+        return True
+    try:
+        probe = json.loads(FRAMES.read_text(encoding="utf-8"))
+        # dumps from before the interleaved-op recorder have only draws/fills and
+        # cannot be replayed in order, so they must not be treated as fresh
+        if probe and not any("ops" in f for f in probe):
+            return True
+    except Exception:
+        return True
+    atlas_js = GAME / "assets.js"
+    if not atlas_js.exists():
+        return True
+    return atlas_js.stat().st_mtime > FRAMES.stat().st_mtime
+
+
 def main() -> int:
-    if not FRAMES.exists() or "--fresh" in sys.argv:
-        # Self-sufficient: drive the real game headlessly to record its draws.
+    if _stale() or "--fresh" in sys.argv:
         import shutil
         import subprocess
         node = shutil.which("node")
         if not node:
-            print("node not found and game/frames.json is missing -- cannot render")
+            print("node not found and game/frames.json is stale -- cannot render")
             return 1
         print("recording frames from the game...")
-        rc = subprocess.call([node, str(GAME / "smoke_test.mjs"), "--dump", "48"],
+        rc = subprocess.call([node, str(GAME / "smoke_test.mjs"), "--dump", str(DUMP_FRAMES)],
                              cwd=HERE)
         if rc != 0 or not FRAMES.exists():
             print("failed to record frames")
             return rc or 1
+    else:
+        print("frames.json is newer than the atlas, reusing it")
 
     sheet, atlas = load_atlas()
     frames = json.loads(FRAMES.read_text(encoding="utf-8"))
@@ -93,35 +120,41 @@ def main() -> int:
     out = []
     for fr in frames:
         img = Image.new("RGBA", (W, H), (0, 0, 0, 255))
-        # fills first would be wrong in general, but the recorder preserves order
-        # only within each list; replay them merged by ignoring fills that are
-        # full-screen overlays until the end.
-        overlays = []
-        for d in fr["draws"]:
-            r = atlas.get(d["key"])
-            if not r:
+        # Replay in the ORDER THE GAME ISSUED THEM. This is not a detail: the
+        # first thing the renderer does is clear the frame with a full-canvas
+        # fill, and an earlier version of this compositor collected full-screen
+        # fills and applied them last as "overlays" -- so the clear landed on top
+        # of the finished picture and flattened all 48 frames to one colour,
+        # which Pillow then collapsed into a single-frame GIF.
+        ops = fr.get("ops")
+        if ops is None:
+            # older dumps only recorded the two lists separately; approximate
+            ops = ([{"kind": "draw", **d} for d in fr.get("draws", [])] +
+                   [{"kind": "fill", **f} for f in fr.get("fills", [])])
+        for op in ops:
+            if op["kind"] == "draw":
+                r = atlas.get(op["key"])
+                if not r:
+                    continue
+                sx, sy, sw, sh = r
+                img.alpha_composite(sheet.crop((sx, sy, sx + sw, sy + sh)),
+                                    (int(round(op["dx"])), int(round(op["dy"]))))
                 continue
-            sx, sy, sw, sh = r
-            cell = sheet.crop((sx, sy, sx + sw, sy + sh))
-            img.alpha_composite(cell, (int(round(d["dx"])), int(round(d["dy"]))))
-        for f in fr["fills"]:
-            col = parse_colour(f.get("col"))
+
+            col = parse_colour(op.get("col"))
             if not col or col[3] == 0:
-                continue
-            x, y, w, h = (int(round(f[k])) for k in ("x", "y", "w", "h"))
+                continue          # gradients (muzzle light, vignette) are not replayed
+            x, y = int(round(op["x"])), int(round(op["y"]))
+            w, h = int(round(op["w"])), int(round(op["h"]))
             if w <= 0 or h <= 0:
                 continue
-            if w >= W and h >= H:
-                overlays.append((x, y, w, h, col))       # full-screen tint/vignette
+            if x >= W or y >= H or x + w <= 0 or y + h <= 0:
                 continue
-            if not (0 <= y < H and y + h > 0):
-                continue
+            alpha = op.get("alpha")
+            a = 1.0 if alpha is None else max(0.0, min(1.0, float(alpha)))
             lay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-            lay.paste(col, (x, y, x + max(1, w), y + max(1, h)))
-            img.alpha_composite(lay)
-        for x, y, w, h, col in overlays:
-            lay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-            lay.paste(col, (max(0, x), max(0, y), min(W, x + w), min(H, y + h)))
+            lay.paste((col[0], col[1], col[2], int(col[3] * a)),
+                      (max(0, x), max(0, y), min(W, x + w), min(H, y + h)))
             img.alpha_composite(lay)
         out.append(img)
 
@@ -129,7 +162,7 @@ def main() -> int:
            for f in out]
 
     gif = ASSETS / "game.gif"
-    pal = [f.convert("P", palette=Image.Palette.ADAPTIVE, colors=128) for f in big]
+    pal = [f.convert("P", palette=Image.Palette.ADAPTIVE, colors=GIF_COLOURS) for f in big]
     pal[0].save(gif, save_all=True, append_images=pal[1:],
                 duration=FRAME_MS, loop=0, optimize=False)
 
@@ -141,6 +174,19 @@ def main() -> int:
 
     for i in (0, len(big) // 2, len(big) - 1):
         big[i].save(ASSETS / f"game_f{i:02d}.png")
+
+    # Remove sample frames this script wrote on an earlier run but does not write
+    # now. Leaving them behind is not harmless: verify_reproducible.py compares
+    # every committed asset against what the build regenerates, and a frame from
+    # a 48-frame run sitting next to a 36-frame one is an asset nothing produces.
+    keep = {f"game_f{i:02d}.png" for i in (0, len(big) // 2, len(big) - 1)}
+    dropped = []
+    for stale in ASSETS.glob("game_f*.png"):
+        if stale.name not in keep:
+            stale.unlink()
+            dropped.append(stale.name)
+    if dropped:
+        print(f"removed   : {', '.join(sorted(dropped))} (no longer generated)")
 
     print(f"frames    : {len(big)} at {SCALE}x -> {W * SCALE}x{H * SCALE}")
     print(f"wrote     : {gif}  ({FRAME_MS}ms, loops)")
