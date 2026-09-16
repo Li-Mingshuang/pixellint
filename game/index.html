@@ -63,6 +63,7 @@ let artReady = false;
 sheet.onload = () => { artReady = true; };
 if (window.ATLAS_PNG) sheet.src = window.ATLAS_PNG;
 const ATLAS = window.ATLAS || {};
+const ANCHOR = window.ANCHOR || {};
 
 /** Draw one atlas cell. flip mirrors it horizontally about rx. */
 function spr(key, rx, ry, flip) {
@@ -83,6 +84,13 @@ function spr(key, rx, ry, flip) {
 }
 function has(key) { return !!ATLAS[key]; }
 function cellSize(key) { const r = ATLAS[key]; return r ? [r[2], r[3]] : [0, 0]; }
+
+/** Y position that puts a sprite's own lowest opaque row on the given row. */
+function standY(key, groundRow) {
+  const a = ANCHOR[key];
+  const h = cellSize(key)[1];
+  return groundRow - (a ? a[0] : h - 1);
+}
 
 // -------------------------------------------------------------------- audio
 // Everything is synthesised: no asset files, and it still gives the shooting
@@ -253,7 +261,6 @@ function gibBurst(x, y, dirx) {
 function layerOffset(f, speed) { return -((camX * speed) % W); }
 
 function spawnZombie() {
-  const fromRight = true;
   const x = camX + W + 24 + Math.random() * 60;
   const tough = Math.random() < Math.min(0.35, 0.06 * wave);
   zombies.push({
@@ -262,7 +269,6 @@ function spawnZombie() {
     speed: (14 + Math.random() * 16 + wave * 1.6) * (tough ? 0.7 : 1),
     clip: "walk", ft: Math.random() * 4, state: "walk", t: 0,
     flash: 0, dead: false, groanT: Math.random() * 4,
-    scale: tough ? 1 : 1,
   });
 }
 
@@ -280,8 +286,6 @@ function hurtPlayer(n) {
 }
 
 // ---------------------------------------------------------------- generation
-function* treeSeed() { yield 1; }
-
 function fire() {
   if (player.dead) return;
   const dirx = player.face;
@@ -424,7 +428,6 @@ function update(dt) {
       z.x += Math.sign(dx) * z.speed * dt;
       z.face = Math.sign(dx) || -1;
     }
-    z.x += Math.sign(dx) * 0;
   }
   // separate zombies so they do not stack into one blob
   for (let i = 0; i < zombies.length; i++) {
@@ -493,7 +496,8 @@ function render() {
   // decals sit on the ground, under everything else
   for (const d of decals) {
     ctx.globalAlpha = d.a;
-    if (!spr(d.key, d.x - camX - 10, d.y - 4, false)) {
+    const dy = standY(d.key, d.y);
+    if (!spr(d.key, d.x - camX - 10, dy, false)) {
       ctx.fillStyle = "#4a1010";
       ctx.fillRect(Math.round(d.x - camX - 6), d.y - 3, 14, 3);
     }
@@ -516,7 +520,8 @@ function render() {
     const clip = z.state === "death" ? "death" : z.state;
     const i = Math.floor(z.ft) % 5;
     const key = `zombie.${clip}.${i}`;
-    const px = z.x - camX - 11, py = GROUND_Y - 32;
+    const px = z.x - camX - 11;
+    const py = standY(has(key) ? key : "zombie.walk.0", GROUND_Y);
     let drew = spr(key, px, py, z.face > 0);
     if (!drew) drew = spr("zombie.walk.0", px, py, z.face > 0);
     if (!drew) drawFallback(z.x - camX, GROUND_Y, 14, 30, "#5c7038");
@@ -533,7 +538,8 @@ function render() {
     const clip = player.dead ? "idle" : player.clip;
     const frames = clip === "walk" ? 4 : (clip === "shoot" ? 3 : 2);
     const i = Math.floor(player.ft) % frames;
-    const px = player.x - camX - 12, py = GROUND_Y - 32;
+    const px = player.x - camX - 12;
+    const py = standY(has(`player.${clip}.${i}`) ? `player.${clip}.${i}` : "player.idle.0", GROUND_Y);
     const flashOn = player.iframe > 0 && Math.floor(tGame * 30) % 2 === 0;
     ctx.globalAlpha = player.dead ? 0.85 : 1;
     let drew = spr(`player.${clip}.${i}`, px, py, player.face < 0);

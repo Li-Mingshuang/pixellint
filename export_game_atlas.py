@@ -16,6 +16,7 @@ can be developed before every layer exists.
 import base64
 import io
 import json
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -29,6 +30,9 @@ GAME = HERE / "game"
 ASSETS.mkdir(exist_ok=True)
 GAME.mkdir(exist_ok=True)
 
+# The art modules live in game/ and are imported by bare name.
+sys.path.insert(0, str(GAME))
+
 PAD = 1        # 1px gutter so bilinear-ish sampling can never bleed between cells
 SHEET_W = 512
 
@@ -38,10 +42,13 @@ def collect():
     items = []
 
     def add(prefix, name, value):
-        if isinstance(value, list) and value and isinstance(value[0], list) \
-                and value[0] and isinstance(value[0][0], str):
+        # A grid is list[str]. A clip is list[grid], i.e. list[list[str]].
+        # Getting this backwards silently iterates the grid's ROWS as if they
+        # were frames, which then blow up deep inside build().
+        if isinstance(value, list) and value and isinstance(value[0], str):
             items.append((f"{prefix}.{name}", value))          # a single grid
-        elif isinstance(value, list):
+        elif isinstance(value, list) and value and isinstance(value[0], list) \
+                and value[0] and isinstance(value[0][0], str):
             for i, frame in enumerate(value):
                 items.append((f"{prefix}.{name}.{i}", frame))
         elif isinstance(value, dict):
@@ -83,7 +90,13 @@ def collect():
 
 
 def pack(items):
-    """Shelf packing. Returns (sheet, atlas dict)."""
+    """Shelf packing. Returns (sheet, atlas, anchors).
+
+    `anchors` records, per sprite, its lowest opaque row. The game stands
+    sprites on the ground with that row rather than with the grid's height:
+    a 32-row grid whose boots end on row 30 would otherwise hover two pixels
+    above the street, and every frame of every clip would hover differently.
+    """
     placed = []
     x = y = shelf_h = 0
     for key, grid in items:
@@ -98,11 +111,14 @@ def pack(items):
 
     sheet_h = y + shelf_h
     sheet = Image.new("RGBA", (SHEET_W, sheet_h), (0, 0, 0, 0))
-    atlas = {}
+    atlas, anchors = {}, {}
     for key, grid, px, py, w, h in placed:
         sheet.alpha_composite(build(grid, GAME_PALETTE), (px, py))
         atlas[key] = [px, py, w, h]
-    return sheet, atlas
+        base = max((r for r in range(h) if any(c != "." for c in grid[r])), default=h - 1)
+        cols = [c for r in range(h) for c, ch in enumerate(grid[r]) if ch != "."]
+        anchors[key] = [base, min(cols) if cols else 0, max(cols) if cols else w - 1]
+    return sheet, atlas, anchors
 
 
 def main() -> int:
@@ -111,7 +127,7 @@ def main() -> int:
         print("no art modules found - nothing to pack")
         return 1
 
-    sheet, atlas = pack(items)
+    sheet, atlas, anchors = pack(items)
     sheet_path = ASSETS / "game_atlas.png"
     sheet.save(sheet_path)
 
@@ -126,6 +142,10 @@ def main() -> int:
         "// CORS over file://, and this demo is meant to be double-clickable.\n"
         f"window.ATLAS_PNG = \"data:image/png;base64,{b64}\";\n"
         f"window.ATLAS = {json.dumps(atlas, separators=(',', ':'))};\n"
+        "// ANCHOR[key] = [lowestOpaqueRow, firstContentCol, lastContentCol]\n"
+        "// so the game can stand a sprite on the ground no matter where inside\n"
+        "// its grid the art actually sits.\n"
+        f"window.ANCHOR = {json.dumps(anchors, separators=(',', ':'))};\n"
     )
     js_path = GAME / "assets.js"
     js_path.write_text(js, encoding="utf-8")

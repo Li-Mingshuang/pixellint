@@ -8,7 +8,7 @@
 //
 //   node game/smoke_test.mjs
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import vm from "node:vm";
@@ -22,16 +22,40 @@ if (!scripts.length) { console.error("FATAL: no inline script found in index.htm
 const code = scripts[scripts.length - 1][1];
 
 // ---- canvas / DOM stubs ----------------------------------------------------
+// drawImage is recorded (with the source rect reverse-mapped back to an atlas
+// key) so the draw ORDER and placement can be asserted, not just that render()
+// did not throw. Wrong layer order and off-canvas sprites are real bugs that a
+// "does it throw" test sails straight past.
+const draws = [];
+const fills = [];
+// getContext() is called once, at game init, so the ctx closure must read the
+// atlas through a mutable holder rather than a captured value -- reassigning a
+// variable later would leave the closure looking at the empty object forever.
+const atlasHolder = { ref: {} };
 function makeCtx() {
   const noop = () => {};
   const grad = { addColorStop: noop };
-  return new Proxy({
+  const keyFor = (sx, sy, sw, sh) => {
+    const atlas = atlasHolder.ref;
+    for (const k in atlas) {
+      const r = atlas[k];
+      if (r && r[0] === sx && r[1] === sy && r[2] === sw && r[3] === sh) return k;
+    }
+    return "<unknown>";
+  };
+  const base = {
     canvas: { width: 320, height: 180 },
     createRadialGradient: () => grad,
     createLinearGradient: () => grad,
     measureText: () => ({ width: 4 }),
-    getImageData: () => ({ data: new Uint8ClampedArray(4) }),
-  }, {
+    drawImage: (_img, sx, sy, sw, sh, dx, dy) => {
+      draws.push({ key: keyFor(sx, sy, sw, sh), dx, dy, sw, sh });
+    },
+    fillRect: (x, y, w, h) => {
+      fills.push({ x, y, w, h, col: base.fillStyle, alpha: base.globalAlpha });
+    },
+  };
+  return new Proxy(base, {
     get(t, k) { return k in t ? t[k] : noop; },
     set(t, k, v) { t[k] = v; return true; },
   });
@@ -54,7 +78,14 @@ const sandbox = {
   addEventListener: (k, f) => { (listeners[k] ||= []).push(f); },
   requestAnimationFrame: () => { rafCalls++; return 1; },
   performance: { now: () => Date.now() },
-  Image: class { set src(_) {} },
+  // The game sets onload BEFORE assigning src, so firing it from the setter is
+  // enough to flip artReady and put the real atlas path under test.
+  Image: class {
+    set src(v) { this._src = v; if (typeof this.onload === "function") this.onload(); }
+    get src() { return this._src; }
+    get width() { return 512; }
+    get height() { return 512; }
+  },
   Math, Date, Object, Array, String, Number, Boolean, JSON, isNaN, isFinite,
 };
 sandbox.window = sandbox;
@@ -168,6 +199,80 @@ check("zombies stay bounded", st.zombies.length < 200, `zombies=${st.zombies.len
 let renderErr = null;
 try { g.render(); } catch (e) { renderErr = e; }
 check("render() does not throw", !renderErr, renderErr ? renderErr.message : "");
+
+// 9. draw order and placement
+atlasHolder.ref = sandbox.window.ATLAS || {};
+const atlasRef = atlasHolder.ref;
+draws.length = 0;
+fills.length = 0;
+g.reset();
+g.step(90);
+try { g.render(); } catch { /* already reported above */ }
+
+const haveAtlas = Object.keys(atlasRef).length > 0;
+const idxOf = (pred) => draws.findIndex(d => pred(d.key));
+const lastBg = draws.reduce((a, d, i) => (d.key.startsWith("bg.") ? i : a), -1);
+const firstEntity = draws.findIndex(d =>
+  d.key.startsWith("player.") || d.key.startsWith("zombie."));
+
+check("something is drawn", draws.length + fills.length > 0,
+  `${draws.length} drawImage + ${fills.length} fillRect`);
+
+if (haveAtlas) {
+  check("background is drawn before any entity",
+    lastBg === -1 || firstEntity === -1 || lastBg < firstEntity,
+    `last bg draw #${lastBg}, first entity draw #${firstEntity}`);
+  const poolIdx = idxOf(k => k === "fx.bloodpool");
+  check("blood decals draw under the actors",
+    poolIdx === -1 || firstEntity === -1 || poolIdx < firstEntity,
+    `pool #${poolIdx} vs entity #${firstEntity}`);
+  check("the background layers are actually drawn",
+    draws.filter(d => d.key.startsWith("bg.")).length >= 3,
+    `bg draws=${draws.filter(d => d.key.startsWith("bg.")).length}`);
+} else {
+  console.log("  --    (no atlas yet: layer-order assertions skipped, the game" +
+              " is running on rectangle stand-ins)");
+}
+
+const offCanvas = draws.filter(d => d.sw > 0 &&
+  (d.dx < -360 || d.dx > 320 + 360 || d.dy < -200 || d.dy > 180 + 200));
+check("no sprite drawn absurdly off-canvas", offCanvas.length === 0,
+  offCanvas.slice(0, 3).map(d => `${d.key}@${Math.round(d.dx)},${Math.round(d.dy)}`).join(" "));
+
+// with real art loaded, every sprite the code asks for must exist in the atlas
+const wanted = new Set(draws.map(d => d.key));
+const missing = [...wanted].filter(k => k !== "<bg-fill>" && !(k in atlasRef));
+check("every drawn key exists in the atlas", missing.length === 0,
+  missing.slice(0, 5).join(","));
+
+// ---- optional: dump real draw calls so a GIF can be composited offline -----
+// `node game/smoke_test.mjs --dump 48` writes game/frames.json. render_game_gif.py
+// replays it against the atlas, so the README animation is the game's actual
+// output rather than a hand-made illustration of it.
+if (process.argv.includes("--dump")) {
+  const n = parseInt(process.argv[process.argv.indexOf("--dump") + 1] || "48", 10);
+  const frames = [];
+  g.reset();
+  for (let f = 0; f < n; f++) {
+    // a scripted bit of play: walk right, fire in bursts, let the horde build
+    const t = f / 15;
+    g.setKey("KeyD", true);
+    g.setKey("KeyA", false);
+    const firing = (Math.floor(t * 0.75) % 2) === 1;
+    g.setKey("Space", firing);
+    if (f % 30 === 0) { g.spawnZombie(); g.spawnZombie(); }
+    g.step(4);
+    draws.length = 0;
+    fills.length = 0;
+    g.render();
+    frames.push({ draws: draws.slice(), fills: fills.slice() });
+  }
+  g.setKey("KeyD", false);
+  g.setKey("Space", false);
+  writeFileSync(join(HERE, "frames.json"), JSON.stringify(frames));
+  console.log(`dumped ${frames.length} frames -> game/frames.json`);
+  process.exit(0);
+}
 
 // ---- report ---------------------------------------------------------------
 const pad = Math.max(...results.map(r => r.name.length));
