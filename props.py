@@ -15,16 +15,19 @@ Palette keys actually used, and why:
   FENCE  K outline | T pickets/rails | t shadowed side of every member
   ROCK   K outline | R stone | r stone shadow
 
-Palette pairs that had to be worked around (SCENE_TIERS failures, verified with
-_report pairs; see check_props.py):
+Palette pairs that had to be worked around.  These all fail SCENE_TIERS as
+material pairs (no shade-pair exemption, and dL too small for the value-step
+escape), so they must simply never touch -- check_props.py is what keeps them
+apart:
 
   * wood T may NOT touch wall shadow u (dE 25.7) nor roof shadow o (26.9), so
     each wooden element on the cottage is wrapped in its own K edge and no wood
     is ever placed directly against shaded plaster or shaded roof.
+  * wood shadow t may NOT touch u either way, nor canopy shadow f (27.8): the
+    canopy underside is a solid K rim (row 24) and the trunk's t only appears
+    below it.
   * wall shadow u may NOT touch foundation stone R (27.3), so the wall's right
     shadow band stops on row 28 and the wall base row 29 is plain U.
-  * canopy shadow f may NOT touch trunk shadow t (27.8): the canopy underside is
-    a solid K rim (row 24) and the trunk's t only appears below it.
   * G (grass green) is used for the canopy highlight rather than E: E is the
     grass *blade tip* colour, near-white (L 0.83), and against F it flattens the
     canopy's value ladder.  Nothing in these props is authored as bare grass, so
@@ -250,19 +253,22 @@ def preview_layout() -> tuple[int, int, int, dict[str, int]]:
     return width, height, height - 1 - PAD, xs
 
 
+def compose_preview() -> "Image.Image":
+    """Native-resolution canvas: all four props side by side on one baseline."""
+    from PIL import Image
+
+    width, height, baseline, xs = preview_layout()
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    for name, x in xs.items():
+        canvas.alpha_composite(build(PROPS[name]), (x, baseline - BASES[name]))
+    return canvas
+
+
 def render_preview(path: Path | None = None, scale: int = PREVIEW_SCALE) -> Path:
     """All four props side by side at `scale`x on grass, on one shared baseline."""
-    width, height, baseline, xs = preview_layout()
-
-    canvas = build(["." * width for _ in range(height)])
-    for name, x in xs.items():
-        sprite = build(PROPS[name])
-        y = baseline - BASES[name]    # lowest sprite row lands exactly on baseline
-        canvas.alpha_composite(sprite, (x, y))
-
     out = Path(path) if path else OUT_DIR / "props_preview.png"
     out.parent.mkdir(parents=True, exist_ok=True)
-    preview(canvas, scale, GRASS_BG).save(out)
+    preview(compose_preview(), scale, GRASS_BG).save(out)
     return out
 
 

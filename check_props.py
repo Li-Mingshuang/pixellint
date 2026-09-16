@@ -29,7 +29,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from pixelkit import SCENE_PALETTE, SCENE_TIERS, check_grid, report_separation
+from pixelkit import SCENE_PALETTE, SCENE_TIERS, check_grid, report_separation, preview
 from props import (
     BASES,
     CHIMNEY_CAP_COLS,
@@ -58,8 +58,9 @@ from props import (
     TREE_H,
     TREE_TRUNK_COLS,
     TREE_W,
-    render_preview,
+    compose_preview,
     preview_layout,
+    render_preview,
 )
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -201,9 +202,18 @@ def check_metadata() -> list[str]:
 
 
 def check_preview() -> tuple[list[str], list[str]]:
-    """The rendered PNG must decode back to the props, all on one baseline."""
+    """The PNG on disk must decode back to the authored props, pixel for pixel.
+
+    Rebuilds the expected image from the grids (compose_preview is what
+    render_preview draws, so there is one source of truth) and compares EVERY
+    pixel, background included: a stray pixel anywhere is a failure, and so is a
+    preview left stale by an edit to the grids.
+    """
     problems, report = [], []
-    path = render_preview()
+    path = ASSETS / "props_preview.png"
+    if not path.exists():
+        path = render_preview()           # fresh checkout: build it once
+        report.append("preview  was missing, rendered from props.py")
     img = Image.open(path).convert("RGBA")
     width, height, baseline, xs = preview_layout()
 
@@ -211,40 +221,36 @@ def check_preview() -> tuple[list[str], list[str]]:
         problems.append(f"preview: size {img.size} != {(width * PREVIEW_SCALE, height * PREVIEW_SCALE)}")
         return problems, report
 
+    expected = preview(compose_preview(), PREVIEW_SCALE, GRASS_BG)
+    if list(img.getdata()) != list(expected.getdata()):
+        got, want = img.load(), expected.load()
+        bad = next((x, y) for y in range(img.height) for x in range(img.width)
+                   if got[x, y] != want[x, y])
+        x, y = bad
+        scale = PREVIEW_SCALE
+        problems.append(
+            f"preview: pixel ({x},{y}) is {got[x, y]}, expected {want[x, y]} "
+            f"-- native ({x // scale},{y // scale}); re-run props.py"
+        )
+
+    # the BASE of every prop must sit on the one shared baseline row
     px = img.load()
-    inv = {v: k for k, v in SCENE_PALETTE.items()}
-    scale, mid = PREVIEW_SCALE, PREVIEW_SCALE // 2
     for name, grid in PROPS.items():
-        base = BASES[name]
-        col = next((x for x, c in enumerate(grid[base]) if c == "K"), None)
+        col = next((c for c, ch in enumerate(grid[BASES[name]]) if ch == "K"), None)
         if col is None:
             problems.append(f"{name}: BASE row has no K pixel to anchor on")
             continue
-        for row in range(SIZES[name][1]):
-            for x in range(SIZES[name][0]):
-                if grid[row][x] == ".":
-                    continue               # background: grass, checked separately
-                want = SCENE_PALETTE[grid[row][x]]
-                got = px[(xs[name] + x) * scale + mid, (baseline - base + row) * scale + mid]
-                if got != want:
-                    problems.append(
-                        f"{name}: preview pixel ({x},{row}) is {got}, expected {want} "
-                        f"from '{grid[row][x]}'"
-                    )
-                    break
-            else:
-                continue
-            break
-        got = px[(xs[name] + col) * scale + mid, baseline * scale + mid]
+        got = px[(xs[name] + col) * PREVIEW_SCALE + PREVIEW_SCALE // 2,
+                 baseline * PREVIEW_SCALE + PREVIEW_SCALE // 2]
         if got != SCENE_PALETTE["K"]:
             problems.append(f"{name}: BASE does not land on the shared baseline row (got {got})")
+        above = px[(xs[name] + col) * PREVIEW_SCALE + PREVIEW_SCALE // 2,
+                   (baseline - 1) * PREVIEW_SCALE + PREVIEW_SCALE // 2]
+        if above == (*GRASS_BG, 255):
+            problems.append(f"{name}: nothing sits on the baseline at col {col}")
 
-    # the backdrop is grass everywhere the props are not
-    corner = px[0, 0]
-    if corner != (*GRASS_BG, 255):
-        problems.append(f"preview: backdrop is {corner}, expected grass {(*GRASS_BG, 255)}")
     report.append(f"preview  {img.size[0]}x{img.size[1]} at {PREVIEW_SCALE}x on grass, "
-                  f"baseline native row {baseline} -> {path.name}")
+                  f"{len(PROPS)} props on baseline native row {baseline} -> {path.name}")
     return problems, report
 
 

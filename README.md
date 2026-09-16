@@ -254,6 +254,26 @@ python check_scene.py                # assert over the composed scene
   redesign rather than a patch. This is the honest shape of the tradeoff: the
   checks make every constraint visible, and a visible constraint is a decision
   you can defer instead of a bug you discover later.
+- **The scene tier is probably still too tight, and here is the receipt.** Across
+  four agents, **13 distinct colour pairs** had to be designed around rather than
+  used:
+
+  | pair | dE | floor | consequence |
+  |---|---|---|---|
+  | `t`–`o` | 17.6 | 32 | no wood on the shaded roof slope |
+  | `K`–`t` | 24.7 | 28 | no two-tone fur on a 20px dog |
+  | `a`–`C` | 10.9 | 32 | shirt blues unusable as sky gradient steps |
+  | `g`–`F` | 26.7 | 32 | grass shadow may never meet foliage |
+  | `u`–`R` | 27.3 | 32 | wall shadow stops a row above the foundation |
+  | `R`–`A` | 27.4 | 32 | far ridge needs a 1px `r` cap to face the sky |
+  | `T`–`u` | 25.7 | 32 | no bare wood against shaded plaster |
+  | …and six more | | | |
+
+  A constraint that shapes thirteen compositional decisions is no longer a sanity
+  check, it is a design driver. The floor that earns its keep is **outline vs
+  fill** — that is the class that destroys a silhouette, and it caught the
+  original ΔE 12.7 killer. The material floor at 32 on large shapes is the one to
+  revisit.
 
 ## Roadmap
 

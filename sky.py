@@ -19,8 +19,8 @@ BACKDROP -- 160 x 58, fully opaque, composited at scene rows 0..57.
                layer with no ragged edge and no gap.
 
 CLOUD_STRIP -- 64 x 12, a horizontally tiling cloud band.  Three clouds of
-different size and height, spaced 3 / 10 / 2 rows apart so the repeat does not
-announce itself; the largest straddles column 63/0, so its dx = -1 column is
+different size and height, with 3 / 10 / 2 columns of sky between them so the
+repeat does not announce itself; the largest straddles column 63/0, so its dx = -1 column is
 column 63 and its dx = 0 column is column 0 -- one shape wrapping the seam, with
 identical depth and identical shading on both sides.  W body, w underside, .
 sky showing through.  Rows 0 and 11 are empty, so the band never needs a
@@ -34,6 +34,13 @@ Palette notes (SCENE_TIERS floors, dE76) -- pairs deliberately avoided:
       intermediate ramp steps; the sky is a/A dither only.
   g-F 26.7 is under 32, so grass shadow never touches foliage base: the g base
       band starts two rows below the lowest treeline pixel.
+
+Derivation, for whoever has to re-tune this: the hill crest is a clamped sum of
+three sines over x (rows 50..55), the ridge silhouette a clamped sum of two
+(rows 45..50), and the treeline is 21 deterministic clumps standing on hill
+crests no lower than row 54, crowns clamped out of the sky rows and canopy
+undersides in f.  Nothing here computes at import time -- the grids below are
+the literal art, so a change to this file is a change to the picture.
 """
 
 BACKDROP: list[str] = [
