@@ -7,7 +7,7 @@ place to re-tune a number; this file is the picture.
 
     layer    size       opaque?   contents
     SKY      320 x  96  yes       four band keys `1` `2` `3` `4` joined by
-                                  Bayer-dithered ramps, stars, a moon
+                                  ordered-dithered ramps, stars, a moon
     FAR      320 x  56  no        `5` skyline silhouettes, `6` lit rims, a
                                   tower crane, antennae
     MID      320 x  64  no        `C` concrete masses, `c` shadows, `5` voids,
@@ -26,8 +26,8 @@ frame, and `LAYER_OFFSETS` repeats them so the packer and the game cannot drift:
 
 INTEGRATION NOTE.  The sky is a single 96-row tile and the frame is 180 rows, so
 scene rows 96..179 have no sky behind them -- and FAR and MID are transparent
-where they are empty, by design.  With the offsets above that leaves ~29% of
-scene rows 96..139 showing nothing at all.  Drawing the sky as a vertical tile
+where they are empty, by design.  With the offsets above that leaves ~24% of
+scene rows 88..139 showing nothing at all.  Drawing the sky as a vertical tile
 at SKY_TILE_OFFSETS instead of once at 0 closes it exactly: two 96-row tiles
 cover -52..139, and 140 is the street's top row, so the frame has no hole and
 the haze band lands on the horizon where it belongs.  The art does not change

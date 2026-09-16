@@ -33,6 +33,10 @@ scrolls is an assertion rather than an opinion.
     darkness    MID must read as the more solid layer: its visible window has to
                 be covered at least twice as heavily as FAR's, and its mass has
                 to be carried by its dark tones rather than by lit faces.
+    placement   the offsets, z-order and atlas keys the layers export have to
+                still match the table `game/index.html` draws with, and the sky
+                tile offsets have to close the 180-row frame.  The composite is
+                then measured for cells no layer covers -- reported, not hidden.
     raster      every committed PNG decodes back to the authored grid, pixel for
                 pixel, including the composite panel and the tiled strips inside
                 assets/bg_preview.png.
@@ -180,7 +184,8 @@ def check_shape() -> tuple[list[str], list[str]]:
     engine = {"SKY": 0, "FAR": GROUND_Y - 52, "MID": GROUND_Y - 60, "STREET": GROUND_Y - 8}
     if LAYER_OFFSETS != engine:
         problems.append(f"LAYER_OFFSETS {LAYER_OFFSETS} disagrees with the game's drawParallax "
-                        f"table {engine}")
+                        f"table {engine}: if the game moved the layers deliberately, re-emit "
+                        f"background.py from gen_background.py with the new rows")
     if Z_ORDER != ["SKY", "FAR", "MID", "STREET"]:
         problems.append(f"Z_ORDER {Z_ORDER} is not back-to-front")
     if ATLAS_KEYS != {"SKY": "bg.sky", "FAR": "bg.far", "MID": "bg.mid", "STREET": "bg.street"}:

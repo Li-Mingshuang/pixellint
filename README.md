@@ -173,6 +173,63 @@ Net effect on the meadow's thirteen blocked pairs: **7 now clean, 7 warnings, 2
 still hard failures** — and those two (`a`–`C` at 10.9, `t`–`n` at 13.7) are
 genuinely indistinguishable, which is what a hard failure should mean.
 
+## An assertion that cannot fail is not an assertion
+
+Three bugs the harness caught in the renderer, each of which was invisible in a
+static review and obvious the moment anything moved.
+
+**The renderer never cleared the frame.** Anything not painted this frame kept
+showing the previous frame's pixels. It read as a smear across part of the screen
+once the camera scrolled.
+
+**A quarter of the screen was covered by nothing.** The background agent found
+this while fitting its layers: the sky is a 96-row tile in a 180-row frame, and
+the far and mid layers are transparent wherever there is no building — so scene
+rows ~96..139, 24% of the screen, had no layer over them at all.
+
+**The muzzle flash floated off the barrel.** Its position was a hard-coded
+`player.x + 13, y 126`; the art actually draws the barrel tip at `player.x + 11,
+y 128`. Two columns right and two rows high. Fixed structurally — the atlas now
+exports each sprite's rightmost opaque pixel and the game reads the muzzle from
+that, so the value is measured rather than guessed and cannot drift when the art
+is redrawn.
+
+The instructive part is how hard it was to write an assertion that caught the
+second one. Two attempts were worthless:
+
+- *"every scanline is covered"* — passed **with the bug present**, because the
+  clear satisfies it.
+- *"every scanline is covered by opaque background pixels"* — still passed,
+  because `drawImage` paints its whole rect *whether or not its pixels are
+  transparent*. Raw draw rects cannot tell a filled band from a hole. Making this
+  checkable at all required `export_game_atlas.py` to start exporting
+  `OPAQUE[key]`: the runs of rows in each cell that are genuinely 100% opaque.
+
+Both surviving assertions were then **negative-tested** — disable the fix,
+confirm the assertion fails, restore. An assertion that cannot fail is not an
+assertion; it is decoration.
+
+**A pose pop with no crash to announce it.** The renderer advanced every enemy
+clip with a hard-coded `% 5`. The walk has 4 frames, so it repeated frame 0 every
+fifth tick; the attack has 2, so frames 2–4 found no key, `spr()` returned false,
+and the renderer fell back to drawing the *standing* pose for the rest of the
+attack.
+
+This one took three attempts to assert, and the failures are the lesson:
+
+- *"every live enemy is painted"* — passed, because the fallback repaints
+  something. The count is always right while the pose is wrong.
+- *"every frame of every clip is drawn"* — also passed: a `% 5` over a 2-frame
+  clip still draws frames 0 and 1.
+- *"every enemy is drawn in its own state's clip"* — this one works. It compares,
+  per state, how many enemies are *in* that state against how many were drawn
+  *in that state's clip*. With the bug reintroduced it reports `407/1506
+  mismatched; first: 1 in 'attack' but 0 drawn in that clip`.
+
+The clip lengths now come out of the atlas (`window.CLIPS`) rather than being
+assumed in the renderer, which is the same fix as the muzzle: measure the art,
+do not guess at it.
+
 ## Playability is asserted too
 
 A game can pass every art check and still be unplayable. `game/smoke_test.mjs`

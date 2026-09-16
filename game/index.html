@@ -64,6 +64,10 @@ sheet.onload = () => { artReady = true; };
 if (window.ATLAS_PNG) sheet.src = window.ATLAS_PNG;
 const ATLAS = window.ATLAS || {};
 const ANCHOR = window.ANCHOR || {};
+const CLIPS = window.CLIPS || {};
+
+/** Frame count for a clip, taken from the art rather than assumed. */
+function clipLen(prefix, clip) { return CLIPS[prefix + "." + clip] || 1; }
 
 /** Draw one atlas cell. flip mirrors it horizontally about rx. */
 function spr(key, rx, ry, flip) {
@@ -446,9 +450,10 @@ function update(dt) {
   for (const z of zombies) {
     if (z.state === "death") {
       z.t += dt; z.ft += dt * 9;
-      if (z.ft >= 5) {
+      const dn = clipLen("zombie", "death");
+      if (z.ft >= dn) {
         if (!z.pooled) { z.pooled = true; addDecal(z.x, GROUND_Y - 4, "fx.bloodpool"); }
-        z.ft = 4.999;
+        z.ft = dn - 0.001;
       }
       continue;
     }
@@ -504,19 +509,53 @@ function update(dt) {
 }
 
 // -------------------------------------------------------------------- render
+const SKY_Y = 0;
+const MID_Y = GROUND_Y - 60;
+const FAR_Y = GROUND_Y - 52;
+const STREET_Y = GROUND_Y - 8;
+
 function drawParallax() {
-  const layers = [["bg.sky", 0.06], ["bg.far", 0.22], ["bg.mid", 0.5], ["bg.street", 1.0]];
-  const ys = { "bg.sky": 0, "bg.far": GROUND_Y - 52, "bg.mid": GROUND_Y - 60, "bg.street": GROUND_Y - 8 };
-  for (const [key, spd] of layers) {
+  const haze = (window.PALETTE && window.PALETTE["4"]) || "#55688f";
+
+  // 1. Clear every frame. The frame is composited fresh rather than painted over
+  //    the previous one; without this, anything not covered this frame keeps
+  //    showing last frame's pixels.
+  ctx.fillStyle = haze;
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. Sky, tiled horizontally.
+  const skyH = has("bg.sky") ? cellSize("bg.sky")[1] : 0;
+  if (has("bg.sky")) {
+    const [w] = cellSize("bg.sky");
+    let x = layerOffset(0.06, 0.06) - w;
+    while (x < W + w) { spr("bg.sky", x, SKY_Y, false); x += w; }
+  }
+
+  // 3. Close the gap between the sky's last row and the street's first row. The
+  //    sky is a 96-row tile in a 180-row frame and the far/mid layers are
+  //    transparent wherever there is no building, so without this roughly a
+  //    quarter of the frame has no layer over it at all. The fill uses the
+  //    palette's haze tone, which IS the sky tile's own bottom band, so the
+  //    gradient continues with no seam.
+  if (skyH > 0 && SKY_Y + skyH < STREET_Y) {
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, SKY_Y + skyH, W, STREET_Y - (SKY_Y + skyH));
+  }
+
+  // 4. The building layers, then the street.
+  for (const [key, spd, y] of [["bg.far", 0.22, FAR_Y], ["bg.mid", 0.5, MID_Y],
+                               ["bg.street", 1.0, STREET_Y]]) {
     if (!has(key)) continue;
     const [w] = cellSize(key);
     if (!w) continue;
     let x = layerOffset(spd, spd) - w;
-    const y = ys[key];
     while (x < W + w) { spr(key, x, y, false); x += w; }
   }
-  if (!has("bg.sky")) { ctx.fillStyle = "#141a2a"; ctx.fillRect(0, 0, W, GROUND_Y); }
-  if (!has("bg.street")) { ctx.fillStyle = "#23262c"; ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y); }
+
+  if (!has("bg.street")) {
+    ctx.fillStyle = (window.PALETTE && window.PALETTE["R"]) || "#3e434c";
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  }
 }
 
 function drawFallback(x, y, w, h, col) {
@@ -557,7 +596,7 @@ function render() {
   const order = zombies.slice().sort((a, b) => (a.state === "death" ? -1 : 0) - (b.state === "death" ? -1 : 0));
   for (const z of order) {
     const clip = z.state === "death" ? "death" : z.state;
-    const i = Math.floor(z.ft) % 5;
+    const i = Math.floor(z.ft) % clipLen("zombie", clip);
     const key = `zombie.${clip}.${i}`;
     const px = z.x - camX - 11;
     const py = standY(has(key) ? key : "zombie.walk.0", GROUND_Y);
@@ -575,8 +614,7 @@ function render() {
   // player
   {
     const clip = player.dead ? "idle" : player.clip;
-    const frames = clip === "walk" ? 4 : (clip === "shoot" ? 3 : 2);
-    const i = Math.floor(player.ft) % frames;
+    const i = Math.floor(player.ft) % clipLen("player", clip);
     const px = player.x - camX - 12;
     const py = standY(has(`player.${clip}.${i}`) ? `player.${clip}.${i}` : "player.idle.0", GROUND_Y);
     const flashOn = player.iframe > 0 && Math.floor(tGame * 30) % 2 === 0;

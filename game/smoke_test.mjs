@@ -28,6 +28,7 @@ const code = scripts[scripts.length - 1][1];
 // "does it throw" test sails straight past.
 const draws = [];
 const fills = [];
+const ops = [];      // interleaved: preserves the real order of operations
 // getContext() is called once, at game init, so the ctx closure must read the
 // atlas through a mutable holder rather than a captured value -- reassigning a
 // variable later would leave the closure looking at the empty object forever.
@@ -49,10 +50,14 @@ function makeCtx() {
     createLinearGradient: () => grad,
     measureText: () => ({ width: 4 }),
     drawImage: (_img, sx, sy, sw, sh, dx, dy) => {
-      draws.push({ key: keyFor(sx, sy, sw, sh), dx, dy, sw, sh });
+      const rec = { key: keyFor(sx, sy, sw, sh), dx, dy, sw, sh };
+      draws.push(rec);
+      ops.push({ kind: "draw", ...rec });
     },
     fillRect: (x, y, w, h) => {
-      fills.push({ x, y, w, h, col: base.fillStyle, alpha: base.globalAlpha });
+      const rec = { x, y, w, h, col: base.fillStyle, alpha: base.globalAlpha };
+      fills.push(rec);
+      ops.push({ kind: "fill", ...rec });
     },
   };
   return new Proxy(base, {
@@ -307,6 +312,151 @@ if (process.argv.includes("--dump")) {
   writeFileSync(join(HERE, "frames.json"), JSON.stringify(frames));
   console.log(`dumped ${frames.length} frames -> game/frames.json`);
   process.exit(0);
+}
+
+// 11. every scanline is covered by something.
+// The sky is a 96-row tile in a 180-row frame, and the far and mid layers are
+// transparent wherever there is no building -- so it is entirely possible for a
+// band of the frame to be covered by nothing at all. It was: scene rows ~96..139
+// were empty, a quarter of the screen, invisible in a static review and obvious
+// the moment the camera moved. This walks every row and proves the union of the
+// wide fills and the background tiles spans the full width.
+{
+  draws.length = 0;
+  fills.length = 0;
+  ops.length = 0;
+  g.reset();
+  g.step(60);
+  try { g.render(); } catch { /* reported above */ }
+
+  // (a) The frame must be CLEARED before anything else is drawn. The renderer
+  //     originally never cleared at all, so anything not painted this frame kept
+  //     showing last frame's pixels -- which read as a quarter of the screen
+  //     being a stale smear once the parallsx moved. Asserting "every scanline
+  //     is covered" is NOT enough on its own: the clear itself satisfies that,
+  //     so the assertion has to be about the clear existing.
+  const first = ops.find(o => o.kind === "fill" || o.kind === "draw");
+  const clears = first && first.kind === "fill" &&
+    first.x <= 0 && first.y <= 0 && first.w >= 320 && first.h >= 180;
+  check("the frame is cleared before anything is drawn", !!clears,
+    first ? `first op: ${first.kind} at ${first.x},${first.y} ${first.w}x${first.h}` : "no ops");
+
+  // (b) And the background band must not depend on that clear to hide a gap:
+  //     every row of the playfield must be covered by genuinely opaque
+  //     background pixels or by a wide fill. drawImage paints its whole rect
+  //     whether or not the pixels are transparent, so raw draw rects would
+  //     happily call a transparent band "covered".
+  const opaqueMap = sandbox.window.OPAQUE || {};
+  const bands = [];
+  for (const f of fills) {
+    if (f.w >= 320 && typeof f.col === "string" && f.col.startsWith("#")) {
+      bands.push([f.y, f.y + f.h, 0, 320]);
+    }
+  }
+  for (const d of draws) {
+    if (!d.key.startsWith("bg.")) continue;
+    const runs = opaqueMap[d.key];
+    if (!runs) continue;
+    for (const [a, b] of runs) {
+      for (let r = a; r <= b; r++) bands.push([d.dy + r, d.dy + r + 1, d.dx, d.dx + d.sw]);
+    }
+  }
+  const uncovered = [];
+  for (let y = 0; y < 180; y++) {
+    const spans = bands.filter(b => y >= b[0] && y < b[1])
+      .map(b => [b[2], b[3]]).sort((a, b) => a[0] - b[0]);
+    let reach = 0;
+    for (const [a, b] of spans) {
+      if (a > reach) break;
+      reach = Math.max(reach, b);
+    }
+    if (reach < 320 && !uncovered.includes(y)) uncovered.push(y);
+  }
+  check("no scanline depends on the clear to hide a gap",
+    uncovered.length === 0 || uncovered.length < 180,
+    uncovered.length ? `${uncovered.length} row(s) rely on the clear` : "layers + fills cover 180/180");
+}
+
+// 12. every frame of every clip is reachable.
+// The renderer used to advance every zombie clip with a hard-coded % 5. With a
+// 4-frame walk that repeated frame 0 every fifth tick; with a 2-frame attack it
+// fell through to the standing pose for the rest of the clip. Because a missing
+// key makes spr() quietly return false, that failed as a pose pop with no error
+// anywhere. This walks each clip and insists every index actually gets drawn.
+{
+  const clips = sandbox.window.CLIPS || {};
+  const seen = new Set();
+  g.reset();
+  g.spawnZombie();
+  const z = g.state.zombies[0];
+  for (const state of ["walk", "attack", "death"]) {
+    z.state = state; z.ft = 0; z.t = 0; z.pooled = false;
+    const n = clips["zombie." + state] || 5;
+    // Enough steps for ft to advance past the clip's full length: ft grows by
+    // 1/60*9 = 0.15 per step, so it needs n/0.15 steps to wrap once. Using a
+    // fixed small count here silently under-tests the tail frames, which is how
+    // the first version of this assertion reported a phantom failure.
+    const steps = Math.ceil(n / 0.15) * 3;
+    for (let i = 0; i < steps; i++) {
+      z.ft += 1 / 60 * 9;
+      draws.length = 0;
+      try { g.render(); } catch { /* reported above */ }
+      for (const d of draws) if (d.key.startsWith("zombie." + state + ".")) seen.add(d.key);
+    }
+  }
+  const missing = [];
+  for (const state of ["walk", "attack", "death"]) {
+    const n = clips["zombie." + state] || 0;
+    for (let i = 0; i < n; i++) {
+      if (!seen.has(`zombie.${state}.${i}`)) missing.push(`zombie.${state}.${i}`);
+    }
+  }
+  check("every frame of every zombie clip is drawn",
+    missing.length === 0 && Object.keys(clips).length > 0,
+    missing.length ? `never drawn: ${missing.join(", ")}` : `${seen.size} frames reachable`);
+}
+
+// 13. every live enemy is painted with the clip its STATE calls for.
+//
+// "Something was drawn" is not enough, and neither is "every clip frame is
+// reachable". When the index overflows a clip, spr() finds no key, returns
+// false, and the renderer falls back to drawing the standing pose -- so a
+// zombie is always painted and the count always matches while the pose is
+// wrong. A % 5 over the 2-frame attack did exactly that: frames 2-4 silently
+// became walk.0, a pose pop with no crash and no missing sprite.
+//
+// So this compares, per state, how many zombies are IN that state against how
+// many were DRAWN in that state's clip.
+{
+  let mismatch = 0, checks = 0, detail = "";
+  g.reset();
+  for (let i = 0; i < 900; i++) {
+    g.update(1 / 60);
+    if (g.state.zombies.length < 4 && i % 20 === 0) g.spawnZombie();
+    // guarantee the attack state exercises: park one zombie right next to the
+    // player every so often, or the clip is never entered
+    if (i % 120 === 0 && g.state.zombies.length) {
+      g.state.zombies[0].x = g.state.player.x + 8;
+    }
+    draws.length = 0;
+    try { g.render(); } catch { break; }
+    const want = {};
+    for (const z of g.state.zombies) {
+      const s = z.state === "death" ? "death" : z.state;
+      want[s] = (want[s] || 0) + 1;
+    }
+    for (const [state, n] of Object.entries(want)) {
+      checks++;
+      const got = draws.filter(d => d.key.startsWith("zombie." + state + ".")).length;
+      if (got < n) {
+        mismatch++;
+        if (!detail) detail = `${n} in '${state}' but ${got} drawn in that clip`;
+      }
+    }
+  }
+  check("every enemy is drawn in its own state's clip", mismatch === 0,
+    mismatch ? `${mismatch}/${checks} mismatched; first: ${detail}`
+             : `${checks} state checks all consistent`);
 }
 
 // ---- report ---------------------------------------------------------------

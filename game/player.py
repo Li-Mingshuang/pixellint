@@ -272,8 +272,13 @@ def flash(g, gun_x, gun_y):
 
 
 # --------------------------------------------------------------------------
-# Frames.  LOW = head row 1, torso rows 11-18, hips 19.   HIGH = everything one
-# row up and the planted leg one row longer, so the sole stays on row 31.
+# Frames.  LOW = head row 1, torso rows 11-18, hips 19.
+#
+# HIGH is only the head and chest rising one row, and it is paired two ways:
+#   * walk passing frames lift the whole body, so the hips go to 18 and the
+#     planted leg is authored one row longer -- the sole stays on row 31.
+#   * idle breathing keeps the hips on 19 and stretches the torso instead, so
+#     the jacket stays joined to the pelvis and the planted feet never move.
 # --------------------------------------------------------------------------
 LOW, HIGH = 1, 0
 TORSO_LOW, TORSO_HIGH = 11, 10

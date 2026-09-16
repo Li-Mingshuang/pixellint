@@ -38,8 +38,14 @@ SHEET_W = 512
 
 
 def collect():
-    """Return an ordered list of (key, grid)."""
+    """Return (ordered [(key, grid)], {clip_prefix: frame_count})."""
     items = []
+    clips = {}
+
+    def add_clip(prefix, name, frames):
+        clips[f"{prefix}.{name}"] = len(frames)
+        for i, frame in enumerate(frames):
+            items.append((f"{prefix}.{name}.{i}", frame))
 
     def add(prefix, name, value):
         # A grid is list[str]. A clip is list[grid], i.e. list[list[str]].
@@ -49,8 +55,7 @@ def collect():
             items.append((f"{prefix}.{name}", value))          # a single grid
         elif isinstance(value, list) and value and isinstance(value[0], list) \
                 and value[0] and isinstance(value[0][0], str):
-            for i, frame in enumerate(value):
-                items.append((f"{prefix}.{name}.{i}", frame))
+            add_clip(prefix, name, value)
         elif isinstance(value, dict):
             for k, v in value.items():
                 add(prefix, k, v)
@@ -66,16 +71,14 @@ def collect():
     try:
         import player as pl
         for clip, frames in pl.PLAYER.items():
-            for i, g in enumerate(frames):
-                items.append((f"player.{clip}.{i}", g))
+            add_clip("player", clip, frames)
     except Exception as exc:
         print(f"  ! player unavailable: {exc}")
 
     try:
         import zombie as zb
         for clip, frames in zb.ZOMBIE.items():
-            for i, g in enumerate(frames):
-                items.append((f"zombie.{clip}.{i}", g))
+            add_clip("zombie", clip, frames)
     except Exception as exc:
         print(f"  ! zombie unavailable: {exc}")
 
@@ -86,7 +89,7 @@ def collect():
     except Exception as exc:
         print(f"  ! effects unavailable: {exc}")
 
-    return items
+    return items, clips
 
 
 def pack(items):
@@ -111,7 +114,7 @@ def pack(items):
 
     sheet_h = y + shelf_h
     sheet = Image.new("RGBA", (SHEET_W, sheet_h), (0, 0, 0, 0))
-    atlas, anchors = {}, {}
+    atlas, anchors, opaque = {}, {}, {}
     for key, grid, px, py, w, h in placed:
         sheet.alpha_composite(build(grid, GAME_PALETTE), (px, py))
         atlas[key] = [px, py, w, h]
@@ -127,16 +130,31 @@ def pack(items):
         tip_col = last
         tip_row = min((r for r in range(h) if grid[r][tip_col] != "."), default=base)
         anchors[key] = [base, first, last, tip_row, tip_col]
-    return sheet, atlas, anchors
+
+        # Runs of rows that are 100% opaque. A drawImage paints its whole rect
+        # whether or not the pixels are transparent, so a coverage check that
+        # only looks at draw rects cannot tell a filled band from a hole. This is
+        # what lets the renderer be checked for holes.
+        full = [r for r in range(h) if all(ch != "." for ch in grid[r])]
+        if full:
+            runs, start, prev = [], full[0], full[0]
+            for r in full[1:]:
+                if r == prev + 1:
+                    prev = r
+                else:
+                    runs.append([start, prev]); start = prev = r
+            runs.append([start, prev])
+            opaque[key] = runs
+    return sheet, atlas, anchors, opaque
 
 
 def main() -> int:
-    items = collect()
+    items, clips = collect()
     if not items:
         print("no art modules found - nothing to pack")
         return 1
 
-    sheet, atlas, anchors = pack(items)
+    sheet, atlas, anchors, opaque = pack(items)
     sheet_path = ASSETS / "game_atlas.png"
     sheet.save(sheet_path)
 
@@ -157,6 +175,21 @@ def main() -> int:
         "// flash where the art actually draws the muzzle, no matter where inside\n"
         "// the grid the art sits.\n"
         f"window.ANCHOR = {json.dumps(anchors, separators=(',', ':'))};\n"
+        "// The palette as CSS colours, so the renderer can fill a region with a\n"
+        "// palette tone (closing a gap between layers, tinting a flash) without\n"
+        "// hard-coding a hex value that would silently drift from the art.\n"
+        f"window.PALETTE = {json.dumps({k: '#%02x%02x%02x' % v[:3] for k, v in GAME_PALETTE.items() if k != '.'}, separators=(',', ':'))};\n"
+        "// OPAQUE[key] = [[firstRow, lastRow], ...] runs of rows that are 100%\n"
+        "// opaque. drawImage paints its whole rect regardless of alpha, so a\n"
+        "// renderer coverage test cannot use draw rects alone -- this is what\n"
+        "// lets it tell a filled band from a hole.\n"
+        f"window.OPAQUE = {json.dumps(opaque, separators=(',', ':'))};\n"
+        "// CLIPS[prefix.clip] = frame count, so the game can advance a clip by its\n"
+        "// OWN length. It used to index every clip with a hard-coded % 5: with a\n"
+        "// 4-frame walk that repeated frame 0 every fifth tick, and with a 2-frame\n"
+        "// attack it silently fell back to the standing pose for the rest of the\n"
+        "// clip -- a pose pop with no crash to announce it.\n"
+        f"window.CLIPS = {json.dumps(clips, separators=(',', ':'))};\n"
     )
     js_path = GAME / "assets.js"
     js_path.write_text(js, encoding="utf-8")
