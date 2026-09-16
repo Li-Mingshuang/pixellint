@@ -5,3 +5,8 @@ venv/
 .idea/
 .vscode/
 .DS_Store
+
+# scratch files from parallel authoring agents
+_*.py
+_*.txt
+_*.log
