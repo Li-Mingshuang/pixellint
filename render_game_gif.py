@@ -13,6 +13,7 @@ pixel art.
 """
 
 import json
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -70,9 +71,20 @@ def parse_colour(col):
 
 
 def main() -> int:
-    if not FRAMES.exists():
-        print(f"missing {FRAMES} -- run: node game/smoke_test.mjs --dump 48")
-        return 1
+    if not FRAMES.exists() or "--fresh" in sys.argv:
+        # Self-sufficient: drive the real game headlessly to record its draws.
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            print("node not found and game/frames.json is missing -- cannot render")
+            return 1
+        print("recording frames from the game...")
+        rc = subprocess.call([node, str(GAME / "smoke_test.mjs"), "--dump", "48"],
+                             cwd=HERE)
+        if rc != 0 or not FRAMES.exists():
+            print("failed to record frames")
+            return rc or 1
 
     sheet, atlas = load_atlas()
     frames = json.loads(FRAMES.read_text(encoding="utf-8"))

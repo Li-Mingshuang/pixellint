@@ -22,6 +22,7 @@ RENDER_STEPS = [
     ("render dog layer", "dog.py"),
     ("compose scene", "scene.py"),
     ("pack game atlas", "export_game_atlas.py"),
+    ("render game gif", "render_game_gif.py"),
 ]
 
 # Checks run in this order; anything else matching check_*.py is appended and
@@ -41,9 +42,12 @@ def main() -> int:
             print(f"\nFAILED at render step '{label}' (exit {rc})")
             return rc
 
-    discovered = sorted(p.name for p in HERE.glob("check_*.py"))
+    # Checks are discovered RECURSIVELY. A non-recursive glob silently skips
+    # game/check_*.py, which is exactly the kind of "the suite is green because
+    # half of it never ran" failure this project is supposed to be about.
+    discovered = sorted(p.relative_to(HERE).as_posix() for p in HERE.rglob("check_*.py"))
     checks = [c for c in CHECK_ORDER if c in discovered]
-    checks += [c for c in discovered if c not in checks and c != "check_scene.py"]
+    checks += [c for c in discovered if c not in checks]
 
     failed = []
     for script in checks:

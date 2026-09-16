@@ -7,7 +7,7 @@ and ``check_effects.py`` asserts every claim made in this docstring.
 
 The set
 -------
-    muzzle     16x12 x4   four-frame muzzle flash, barrel pointing right
+    muzzle     16x12 x4   four-frame muzzle flash, a centred burst
     bullet     10x4  x2   tracer round, bright nose + fading tail
     casing      5x4  x2   spent brass, two rotations
     impact     10x10 x3   sparks on hard surface, then a dust puff
@@ -19,17 +19,20 @@ The set
 Design notes
 ------------
 **The flash has to be a star, not a blob.**  At 16x12 a filled burst is a
-yellow lozenge; the eye reads a burst from its *silhouette*, so both bloom
-frames are built from a cross with arms that taper W -> X -> Y outward, and the
-extreme tip of every arm is offset one pixel off the arm's axis.  Those offsets
-are the raggedness: without them the star reads as a plus sign.
+yellow lozenge; the eye reads a burst from its *silhouette*, so both live
+frames are built from a cross with arms that taper W -> X -> Y outward.  The
+raggedness is in the tips: the beam ends one column further out on row 6 than on
+row 5, and the two horizontal shoulder stubs sit on opposite sides (column 9
+above the core, column 5 below it).  Without those offsets the star reads as a
+plus sign.
 
 Frame 1 (index 0) is a *small hot core* -- 18 px, six of them ``W``, so it is
-mostly white-hot.  Frame 2 (index 1) is the full bloom: 61 px, widest at 15 px
-of beam, W core grown to twelve pixels, cool ``Y`` pushed out to the tips.
-Frame 3 (index 2) collapses to an 11 px cross and frame 4 (index 3) is fully
-transparent -- a burnt-out frame is how a 40 ms flash ends, and ``check_grid``
-reporting "fully transparent" for it is expected, not a defect.
+mostly white-hot.  Frame 2 (index 1) is the full bloom: 61 px, 12 of its 16
+columns lit on the widest row, W core grown to twelve pixels, cool ``Y`` pushed
+out to the tips.  Frame 3 (index 2) collapses to an 11 px cross and frame 4
+(index 3) is fully transparent -- a burnt-out frame is how a 40 ms flash ends,
+and ``check_grid`` reporting "fully transparent" for it is expected, not a
+defect.
 
 **Blood reads by direction, not by symmetry.**  A spray is dense where it left
 the body and broken where it is going, so each of the three spatter frames puts
@@ -51,9 +54,12 @@ on its bottom row so it can be placed flush with ``GROUND_Y``.
 Anchoring
 ---------
 Every grid is transparent except its own pixels and is drawn with its own
-top-left at the effect's origin.  ``muzzle`` and ``bullet`` travel right: the
-hottest pixel / the nose is the rightmost one.  ``bloodpool`` and ``dust`` put
-their base on their last row so a caller can align them to the ground.
+top-left at the effect's origin.  ``muzzle`` is a centred star, so a caller
+places it at the barrel mouth rather than at its left edge.  ``bullet`` travels
+right: its nose is the rightmost pixel, and both frames keep that nose in the
+same column.  ``blood`` sprays in the direction its ``v`` edge points -- right
+for frames 1 and 3, up for frame 2.  ``bloodpool`` and ``dust`` put their base
+on their last row so a caller can align them to ``GROUND_Y``.
 """
 
 from pathlib import Path
@@ -192,8 +198,8 @@ CASING_FRAMES: list[list[str]] = [
 
 # --------------------------------------------------------------------------
 # impact -- 10x10 x3.  Sparks, then the dust the round knocked loose.
-# f0 is a connected star with four separated tips; f1 has thrown the sparks
-# clear (eleven single pixels, cooling X -> Y outward); f2 is only the puff.
+# f0 is a connected star with three separated tips; f1 has thrown the sparks
+# clear (fifteen single pixels, cooling X -> Y outward); f2 is only the puff.
 # --------------------------------------------------------------------------
 IMPACT_FRAMES: list[list[str]] = [
     [

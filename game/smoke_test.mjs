@@ -245,6 +245,41 @@ const missing = [...wanted].filter(k => k !== "<bg-fill>" && !(k in atlasRef));
 check("every drawn key exists in the atlas", missing.length === 0,
   missing.slice(0, 5).join(","));
 
+// 10. parallax covers the viewport at any camera position.
+// A layer that is 320 wide but drawn from a single anchored origin eventually
+// leaves a gap at the right edge. That is the classic parallax bug and it is
+// invisible until the player has walked a while.
+if (haveAtlas) {
+  const gaps = [];
+  for (const travel of [0, 137, 1600, 9999]) {
+    g.reset();
+    g.state.player.x = travel;
+    for (let i = 0; i < 4; i++) g.update(1 / 60);
+    draws.length = 0;
+    g.render();
+    for (const layer of ["bg.sky", "bg.far", "bg.mid", "bg.street"]) {
+      const spans = draws.filter(d => d.key === layer)
+        .map(d => [d.dx, d.dx + d.sw]).sort((a, b) => a[0] - b[0]);
+      if (!spans.length) {
+        gaps.push(`${layer} not drawn at camX=${Math.round(g.state.camX)}`);
+        continue;
+      }
+      const where = `camX=${Math.round(g.state.camX)}`;
+      if (spans[0][0] > 0) gaps.push(`${layer} gap 0..${Math.round(spans[0][0])} at ${where}`);
+      let reach = spans[0][1];
+      for (let i = 1; i < spans.length; i++) {
+        if (spans[i][0] > reach) gaps.push(`${layer} gap ${Math.round(reach)}..${Math.round(spans[i][0])} at ${where}`);
+        reach = Math.max(reach, spans[i][1]);
+      }
+      if (reach < 320) gaps.push(`${layer} gap ${Math.round(reach)}..320 at ${where}`);
+    }
+  }
+  check("parallax covers the viewport at every camera position", gaps.length === 0,
+    gaps.slice(0, 4).join(" | "));
+} else {
+  check("parallax covers the viewport at every camera position", true, "skipped, no atlas");
+}
+
 // ---- optional: dump real draw calls so a GIF can be composited offline -----
 // `node game/smoke_test.mjs --dump 48` writes game/frames.json. render_game_gif.py
 // replays it against the atlas, so the README animation is the game's actual
