@@ -19,7 +19,9 @@ RENDER_STEPS = [
     ("render idle sprite", "render_sprite.py"),
     ("render walk cycle", "walk_cycle.py"),
     ("render sky layer", "render_sky.py"),
+    ("render dog layer", "dog.py"),
     ("compose scene", "scene.py"),
+    ("pack game atlas", "export_game_atlas.py"),
 ]
 
 # Checks run in this order; anything else matching check_*.py is appended and

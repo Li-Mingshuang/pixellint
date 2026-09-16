@@ -102,7 +102,50 @@ def main(argv: list[str]) -> int:
         problems += fails
         print(f"  FAIL  {len(fails)} pair(s) below threshold")
     else:
-        print("  ok    every adjacent pair passes at scene tier")
+        print("  ok    every adjacent pair passes")
+    if fails.warnings:
+        print(f"  note  {len(fails.warnings)} tight-but-usable pair(s), listed above as WARN")
+
+    # -- composition ------------------------------------------------------
+    # Two objects may share a colour, or stand close together, but not both.
+    # This is the assertion form of a real complaint: the dog was drawn in the
+    # fence's own wood brown and stood on top of it, and the rock sat inside the
+    # cottage's stone foundation in the same stone. Same colour *and* adjacent
+    # makes two objects read as one.
+    print("\n-- composition: no object may share a colour AND a position ----")
+    comp = spec.get("composition", {})
+    min_gap = comp.get("min_gap", 8)
+    need_shared = comp.get("shared_colours", 2)
+    ignore = set(comp.get("ignore_colours", ["K"]))
+
+    placements = []
+    for layer, grid in sc.layers:
+        if layer.get("tile_horizontal") or "base" not in layer:
+            continue                      # full-width layers are not objects
+        one = grid[0] if layer.get("animated") else grid
+        cols = {c for row in one for c in row if c != "."} - ignore
+        placements.append({
+            "name": layer["name"],
+            "x": layer["x"],
+            "width": len(one[0]),
+            "colours": cols,
+        })
+
+    conflicts = []
+    for i in range(len(placements)):
+        for j in range(i + 1, len(placements)):
+            a, b = placements[i], placements[j]
+            shared = a["colours"] & b["colours"]
+            gap = max(b["x"] - (a["x"] + a["width"]), a["x"] - (b["x"] + b["width"]))
+            both_bad = len(shared) >= need_shared and gap < min_gap
+            tag = "FAIL " if both_bad else "ok   "
+            if both_bad:
+                conflicts.append(
+                    f"{a['name']}/{b['name']}: share {len(shared)} colour(s) "
+                    f"{sorted(shared)} and only {gap}px apart (need >= {min_gap})")
+            print(f"  {tag} {a['name']:<7} / {b['name']:<7}  gap={gap:>4}px  "
+                  f"shared={sorted(shared) if shared else 'none'}")
+    problems += conflicts
 
     print()
     for p in problems:

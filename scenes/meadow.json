@@ -8,6 +8,13 @@
 
   "_comment": "Layers are drawn in array order, so later entries occlude earlier ones. Each layer names a module and the attribute in it holding either one grid or a list of frames. Use \"y\" for a fixed row, or \"base\" to pin the grid's lowest opaque row to a scene row (which is how things stand on the ground).",
 
+  "composition": {
+    "_comment": "Objects may share a colour, or stand close together, but not both -- see pixelkit.object_conflicts. 'K' is excluded because it is the universal outline every object uses.",
+    "min_gap": 8,
+    "shared_colours": 2,
+    "ignore_colours": ["K"]
+  },
+
   "layers": [
     {"name": "backdrop", "module": "sky", "attr": "BACKDROP", "x": 0, "y": 0},
 
@@ -17,21 +24,20 @@
     {"name": "ground", "module": "ground", "attr": "GROUND", "x": 0, "y": 56,
      "tile_horizontal": true},
 
-    {"name": "tree", "module": "props", "attr": "TREE", "x": 2, "base": 84},
-    {"name": "house", "module": "props", "attr": "HOUSE", "x": 110, "base": 79},
-    {"name": "fence_a", "module": "props", "attr": "FENCE", "x": 34, "base": 76},
-    {"name": "fence_b", "module": "props", "attr": "FENCE", "x": 66, "base": 76},
-    {"name": "rock", "module": "props", "attr": "ROCK", "x": 124, "base": 89},
+    {"name": "tree", "module": "props", "attr": "TREE", "x": 0, "base": 85},
+    {"name": "fence", "module": "props", "attr": "FENCE", "x": 40, "base": 76},
+    {"name": "rock", "module": "props", "attr": "ROCK", "x": 30, "base": 90},
+    {"name": "house", "module": "props", "attr": "HOUSE", "x": 112, "base": 78},
 
-    {"name": "dog", "module": "dog", "attr": "DOG_FRAMES", "x": 74, "base": 79,
-     "animated": true, "phase": 2},
-    {"name": "farmer", "module": "walk_cycle", "attr": "FRAMES", "x": 50, "base": 79,
-     "animated": true, "phase": 0}
+    {"name": "farmer", "module": "walk_cycle", "attr": "FRAMES", "x": 48, "base": 79,
+     "animated": true, "phase": 0},
+    {"name": "dog", "module": "dog", "attr": "DOG_FRAMES", "x": 76, "base": 79,
+     "animated": true, "phase": 2}
   ],
 
   "effects": [
-    {"_comment": "house sits at x=110, base row 79; HOUSE is 34 rows so its grid row 0 lands on scene row 46. props.py documents the flue opening at sprite cols 33-37 / row 3, so smoke belongs at scene x 143-147, row 49.",
-     "name": "chimney_smoke", "type": "smoke", "x": 145, "top": 49,
+    {"_comment": "house sits at x=112, base row 78; HOUSE is 34 rows so its grid row 0 lands on scene row 45. props.py documents the flue opening at sprite cols 33-37 / row 3, so smoke belongs at scene x 145-149, row 48.",
+     "name": "chimney_smoke", "type": "smoke", "x": 147, "top": 48,
      "puffs": 4, "fade_after": 13}
   ]
 }
