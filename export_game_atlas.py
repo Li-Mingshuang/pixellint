@@ -117,7 +117,16 @@ def pack(items):
         atlas[key] = [px, py, w, h]
         base = max((r for r in range(h) if any(c != "." for c in grid[r])), default=h - 1)
         cols = [c for r in range(h) for c, ch in enumerate(grid[r]) if ch != "."]
-        anchors[key] = [base, min(cols) if cols else 0, max(cols) if cols else w - 1]
+        first, last = (min(cols), max(cols)) if cols else (0, w - 1)
+        # The rightmost opaque pixel, with its row. For a firing frame that IS the
+        # barrel tip, so the game can put the muzzle flash and the bullet spawn
+        # exactly where the art says the muzzle is instead of at a hand-tuned
+        # offset that silently drifts the moment the art is redrawn. (It already
+        # had: the hard-coded offset was two columns right and two rows above the
+        # actual barrel.)
+        tip_col = last
+        tip_row = min((r for r in range(h) if grid[r][tip_col] != "."), default=base)
+        anchors[key] = [base, first, last, tip_row, tip_col]
     return sheet, atlas, anchors
 
 
@@ -142,9 +151,11 @@ def main() -> int:
         "// CORS over file://, and this demo is meant to be double-clickable.\n"
         f"window.ATLAS_PNG = \"data:image/png;base64,{b64}\";\n"
         f"window.ATLAS = {json.dumps(atlas, separators=(',', ':'))};\n"
-        "// ANCHOR[key] = [lowestOpaqueRow, firstContentCol, lastContentCol]\n"
-        "// so the game can stand a sprite on the ground no matter where inside\n"
-        "// its grid the art actually sits.\n"
+        "// ANCHOR[key] = [lowestOpaqueRow, firstContentCol, lastContentCol,\n"
+        "//                barrelTipRow, barrelTipCol]\n"
+        "// so the game can stand a sprite on the ground, and can put the muzzle\n"
+        "// flash where the art actually draws the muzzle, no matter where inside\n"
+        "// the grid the art sits.\n"
         f"window.ANCHOR = {json.dumps(anchors, separators=(',', ':'))};\n"
     )
     js_path = GAME / "assets.js"

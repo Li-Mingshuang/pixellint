@@ -144,11 +144,13 @@ GUN_DOWN = [
     ".KK.",   # muzzle
 ]
 GUN_SIDE = [
-    "..KKKKK",
-    "KNNGGGK",
-    "KGgggKK",
-    ".KgK...",
+    "..KKKKKK",   # 0  top of the receiver and barrel
+    "KNNGGGGK",   # 1  barrel: highlight up-left, body, muzzle face at the right
+    "KGggggKK",   # 2  underside in shadow
+    ".KgK....",   # 3  pistol grip, hanging under the receiver's rear
 ]
+# Offsets from the muzzle, so the flash is welded to the barrel end.  Every
+# pixel is 4-adjacent to the muzzle outline: check_grid would fail otherwise.
 FLASH = [(0, -1, "X"), (0, 0, "W"), (1, 0, "X"), (0, 1, "X"), (1, 1, "Y")]
 
 
@@ -241,23 +243,27 @@ def arm_down(g, gun_x, gun_y):
 
 
 def arm_side(g, gun_x, gun_y):
-    """Gun up at the shoulder: the near hand takes the grip, the far hand the
-    foregrip.  The sleeve is the near arm; the far arm is behind the receiver."""
-    hy = gun_y + 3                     # the grip row, = last gun block row
-    block(g, GUN_SIDE, gun_x, gun_y, force=True)
-    # Sleeve: a 5-wide diagonal from the shoulder down-forward to the fist.
+    """Gun up at the shoulder, held in both hands.
+
+    Drawn back to front -- arm, then weapon, then fists -- because that is the
+    depth order: the forearm passes behind the receiver and the hands close over
+    the grip and the foregrip.  Getting this backwards buries the receiver under
+    the sleeve and the weapon stops reading.
+    """
+    hy = gun_y + 3                     # the grip row, the last gun block row
     steps = max(1, hy - 12)
-    for i in range(steps + 1):
+    for i in range(steps + 1):         # 1. the near arm, behind the weapon
         y = 12 + i
-        x = 11 + round(i * (gun_x - 10) / steps)
-        text(g, x, y, "KjjjK", force=True)
-    text(g, gun_x + 1, hy, "KSSsK", force=True)           # fist on the grip
+        x = 10 + round(i * (gun_x + 1 - 10) / steps)
+        text(g, x, y, "KjjK", force=True)
+    block(g, GUN_SIDE, gun_x, gun_y, force=True)          # 2. the weapon
+    text(g, gun_x + 1, hy, "KSSsK", force=True)           # 3. fist on the grip
     text(g, gun_x + 1, hy + 1, "KsssK", force=True)
-    text(g, gun_x + 4, hy - 1, "KSK", force=True)         # far hand, foregrip
+    text(g, gun_x + 4, hy - 1, "KSSK", force=True)        # support hand, foregrip
 
 
 def flash(g, gun_x, gun_y):
-    mx, my = gun_x + 6, gun_y + 1                          # the muzzle
+    mx, my = gun_x + 7, gun_y + 1                          # the muzzle face
     for dx, dy, ch in FLASH:
         put(g, mx + 1 + dx, my + dy, ch)
 
@@ -328,7 +334,7 @@ PLAYER = {
     ],
     "shoot": [
         shoot_frame(12, 12),          # raise
-        shoot_frame(15, 10, True),    # FIRE: kicked up, extended, flashing
+        shoot_frame(14, 10, True),    # FIRE: kicked up, extended, flashing
         shoot_frame(13, 11),          # recover
     ],
 }

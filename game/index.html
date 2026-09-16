@@ -92,6 +92,18 @@ function standY(key, groundRow) {
   return groundRow - (a ? a[0] : h - 1);
 }
 
+/** Where the art actually draws the muzzle, in world coords, for a facing. */
+function muzzlePoint(face) {
+  const key = has("player.shoot.1") ? "player.shoot.1" : "player.idle.0";
+  const a = ANCHOR[key];
+  const [w] = cellSize(key);
+  const px = player.x - 12;
+  const py = standY(key, GROUND_Y);
+  if (!a || !w) return { x: px + (face > 0 ? w : 0), y: py };
+  const col = face > 0 ? a[4] : (w - 1 - a[4]);
+  return { x: px + col, y: py + a[3] };
+}
+
 // -------------------------------------------------------------------- audio
 // Everything is synthesised: no asset files, and it still gives the shooting
 // real feedback, which is most of what makes a shooter feel like anything.
@@ -289,8 +301,12 @@ function hurtPlayer(n) {
 function fire() {
   if (player.dead) return;
   const dirx = player.face;
-  const gx = player.x + dirx * 13;
-  const gy = GROUND_Y - 22;
+  // The muzzle comes out of the atlas, not out of a magic number: the previous
+  // hard-coded offset put the flash two columns right and two rows above where
+  // the art actually draws the barrel.
+  const mp = muzzlePoint(dirx);
+  const gx = mp.x;
+  const gy = mp.y;
   bullets.push({ x: gx, y: gy, vx: dirx * 620, life: 0.7, dmg: 1 });
   // muzzle flash, light, casing, recoil, shake, smoke
   parts.push({ x: gx, y: gy, vx: 0, vy: 0, life: 0.055, max: 0.055,
