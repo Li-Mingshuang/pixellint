@@ -222,18 +222,21 @@ cvs.addEventListener("contextmenu", e => e.preventDefault());
 // --------------------------------------------------------------------- state
 let player, zombies, bullets, parts, decals, casings, floats;
 let camX, shake, shakeT, hitstop, tGame, spawnT, score, wave, kills, gameOver, hurtFlash;
-let footT;
+let footT, hitMark, hitMarkKill;
+
+const MAG_SIZE = 30;
 
 function reset() {
   player = {
     x: 90, y: GROUND_Y, vx: 0, face: 1,
     clip: "idle", ft: 0, fireT: 0, recoil: 0,
     hp: 100, maxHp: 100, iframe: 0, dead: false,
+    ammo: MAG_SIZE, reloading: false, reloadT: 0,
   };
   zombies = []; bullets = []; parts = []; decals = []; casings = []; floats = [];
   camX = 0; shake = 0; shakeT = 0; hitstop = 0; tGame = 0;
   spawnT = 0.6; score = 0; wave = 1; kills = 0; gameOver = false; hurtFlash = 0;
-  footT = 0;
+  footT = 0; hitMark = 0; hitMarkKill = false;
 }
 reset();
 
@@ -356,11 +359,27 @@ function update(dt) {
     } else footT = 0;
 
     // clip selection: shoot overrides, then walk, then idle
-    const wantShoot = (mouseDown || keys.Space) && player.fireT <= 0;
-    if (wantShoot) {
-      fire();
-      player.fireT = 0.115;
-      player.shootT = 0.22;
+    const wantFire = (mouseDown || keys.Space);
+    if (wantFire && player.fireT <= 0 && !player.reloading) {
+      if (player.ammo > 0) {
+        fire();
+        player.ammo--;
+        player.fireT = 0.115;
+        player.shootT = 0.22;
+      } else {
+        player.reloading = true;
+        player.reloadT = 0.95;
+        Audio_.reload();
+      }
+    }
+    if (player.ammo <= 0 && !player.reloading) {
+      player.reloading = true;
+      player.reloadT = 0.95;
+      Audio_.reload();
+    }
+    if (player.reloading) {
+      player.reloadT -= dt;
+      if (player.reloadT <= 0) { player.ammo = MAG_SIZE; player.reloading = false; }
     }
     player.fireT = Math.max(0, player.fireT - dt);
     player.shootT = Math.max(0, (player.shootT || 0) - dt);
@@ -370,6 +389,7 @@ function update(dt) {
     player.recoil = Math.max(0, player.recoil - dt * 7);
   }
   if (player.iframe > 0) player.iframe -= dt;
+  if (hitMark > 0) hitMark = Math.max(0, hitMark - dt);
 
   // ---- camera follows, world scrolls with it
   const target = player.x - W * 0.38;
@@ -398,11 +418,14 @@ function update(dt) {
         z.flash = 0.09;
         z.x += Math.sign(b.vx) * 2.2;          // knockback
         bloodBurst(b.x, b.y, Math.sign(b.vx), 8);
+        hitMark = 0.15;
+        hitMarkKill = false;
         Audio_.hit();
         addShake(0.9, 0.06);
         if (z.hp <= 0) {
           z.dead = true; z.state = "death"; z.t = 0; z.ft = 0;
           kills++; score += 100;
+          hitMark = 0.22; hitMarkKill = true;
           gibBurst(z.x, GROUND_Y - 14, Math.sign(b.vx));
           floats.push({ x: z.x, y: GROUND_Y - 34, t: 0.7, txt: "+100" });
           Audio_.squelch();
@@ -665,6 +688,38 @@ function render() {
   ctx.moveTo(chx, chy - 5); ctx.lineTo(chx, chy - 2);
   ctx.moveTo(chx, chy + 2); ctx.lineTo(chx, chy + 5);
   ctx.stroke();
+
+  // hit marker: four ticks flicking outward, white on a hit and red on a kill.
+  // Cheap, and it is most of what makes shooting feel like it connected.
+  if (hitMark > 0) {
+    const a = Math.min(1, hitMark * 7);
+    ctx.strokeStyle = hitMarkKill
+      ? "rgba(224,74,56," + a.toFixed(2) + ")"
+      : "rgba(255,255,255," + a.toFixed(2) + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      ctx.moveTo(chx + dx * 3, chy + dy * 3);
+      ctx.lineTo(chx + dx * 6, chy + dy * 6);
+    }
+    ctx.stroke();
+  }
+
+  // ammo. Flashes red and reads RELOADING when the mag runs dry.
+  ctx.font = "bold 10px monospace";
+  ctx.textAlign = "right";
+  if (player.reloading) {
+    ctx.fillStyle = Math.floor(tGame * 12) % 2 ? "#e04a38" : "#8a9098";
+    ctx.fillText("RELOAD", W - 7, 18);
+    ctx.fillStyle = "#2a1a1a";
+    ctx.fillRect(W - 45, 22, 38, 3);
+    ctx.fillStyle = "#c8a24a";
+    ctx.fillRect(W - 45, 22, Math.round(38 * (1 - player.reloadT / 0.95)), 3);
+  } else {
+    ctx.fillStyle = player.ammo <= 6 ? "#e04a38" : "#d8dce2";
+    ctx.fillText(player.ammo + "/" + MAG_SIZE, W - 7, 18);
+  }
+  ctx.textAlign = "left";
 
   if (Audio_.muted) {
     ctx.fillStyle = "#5a6068"; ctx.font = "6px monospace";

@@ -355,20 +355,20 @@ def far_build() -> list[str]:
 # (x, width, top row, profile).  The last entry crosses the tile seam:
 # 290..319 + 0..33, 64 columns of substance, and no gap is cut near the seam.
 MID_BLOCKS = (
-    (36, 20, 24, "broken"),
-    (60, 12, 12, "tower"),
-    (76, 26, 28, "broken"),
-    (106, 9, 18, "tower"),
-    (119, 18, 22, "broken"),
-    (141, 14, 8, "tower"),
-    (159, 8, 32, "slab"),
-    (171, 22, 18, "stepped"),
-    (197, 11, 11, "tower"),
-    (212, 26, 25, "broken"),
-    (242, 9, 16, "tower"),
-    (255, 14, 20, "broken"),
-    (273, 14, 30, "slab"),
-    (290, 64, 18, "stepped"),
+    (36, 20, 16, "broken"),
+    (60, 12, 7, "tower"),
+    (76, 26, 22, "broken"),
+    (106, 9, 15, "tower"),
+    (119, 18, 13, "broken"),
+    (141, 14, 2, "tower"),
+    (159, 8, 28, "slab"),
+    (171, 22, 11, "stepped"),
+    (197, 11, 6, "tower"),
+    (212, 26, 17, "broken"),
+    (242, 9, 10, "tower"),
+    (255, 14, 13, "broken"),
+    (273, 14, 25, "slab"),
+    (290, 64, 11, "stepped"),
 )
 
 MID_BASE_SHADOW = 3        # bottom rows of every mass are in the rubble shadow
@@ -576,15 +576,24 @@ place to re-tune a number; this file is the picture.
     STREET   320 x  40  yes       `R` asphalt, `r` grain/cracks/potholes, `M`
                                   dashed centre line, `C`/`c` debris
 
-Compositing (see LAYER_OFFSETS / Z_ORDER): each layer's row 0 lands on this
-scene row of a 320x180 viewport.
+Compositing -- mirrored from the game, not invented.  `game/index.html`'s
+`drawParallax()` places the four atlas cells at these scene rows of the 320x180
+frame, and `LAYER_OFFSETS` repeats them so the packer and the game cannot drift:
 
     SKY     0    rows   0.. 95     the sky is behind everything
-    FAR    40    rows  40.. 95     far skyline, bottoms hidden by MID
-    MID    84    rows  84..147     nearer ruins, bases on the road
-    STREET 148   rows 148..187     the top row is the surface, so its top row
-                                   lands on gamepalette.GROUND_Y and the bottom
-                                   eight rows fall off the bottom of the screen
+    MID    88    rows  88..151     nearer ruins, base 4px below the feet line
+    FAR    96    rows  96..151     far skyline, base on the same line
+    STREET 140    rows 140..179    the road, top edge 8px above the feet line
+
+INTEGRATION NOTE.  The sky is a single 96-row tile and the frame is 180 rows, so
+scene rows 96..179 have no sky behind them -- and FAR and MID are transparent
+where they are empty, by design.  With the offsets above that leaves ~29% of
+scene rows 96..139 showing nothing at all.  Drawing the sky as a vertical tile
+at SKY_TILE_OFFSETS instead of once at 0 closes it exactly: two 96-row tiles
+cover -52..139, and 140 is the street's top row, so the frame has no hole and
+the haze band lands on the horizon where it belongs.  The art does not change
+either way; this is a placement fix in the game, and `check_background.py`
+reports the uncovered area rather than hiding it.
 
 TILEABILITY.  All four layers repeat every 320 columns.  Every stamp in the
 generator is applied modulo 320 (so a massif centred on the seam draws on both
@@ -603,10 +612,11 @@ failure at dE 7.75, so `6` stars live only in rows 0..60 where the sky is still
 DARKNESS ORDER.  FAR is a `5` near-black silhouette by palette design (lum
 0.032), so no honest arrangement makes MID's concrete lighter-than-sky bodies
 darker *per opaque pixel* than FAR.  MID therefore earns "darker and more
-solid" the two ways it can: it blanks far more of the frame (coverage roughly
-twice FAR's) and its mass is carried by its dark tones -- `c` shadow plus `5`
-void, not by the lit `C` faces.  `check_background.py` asserts both, and reports
-the raw numbers rather than pretending the first one holds.
+solid" the two ways it can: it blanks far more of the frame (in the window above
+the road, 57% coverage against FAR's 24%, a ratio of 2.4) and its mass is
+carried by its dark tones -- 64% `c` shadow plus `5` void, only 35% lit `C`
+faces.  `check_background.py` asserts both, and reports the raw numbers rather
+than pretending the first one holds.
 """'''
 
 
@@ -627,10 +637,21 @@ def main() -> int:
     parts = [
         DOCSTRING,
         "",
-        "# Each layer's row 0 lands on this scene row of a 320x180 viewport.",
-        "# Back to front; nothing below the sky is drawn over nothing.",
+        "# Back to front.  These are the atlas cells game/index.html draws.",
         "Z_ORDER: list[str] = [\"SKY\", \"FAR\", \"MID\", \"STREET\"]",
-        "LAYER_OFFSETS: dict[str, int] = {\"SKY\": 0, \"FAR\": 40, \"MID\": 84, \"STREET\": 148}",
+        "ATLAS_KEYS: dict[str, str] = {",
+        "    \"SKY\": \"bg.sky\", \"FAR\": \"bg.far\", \"MID\": \"bg.mid\", \"STREET\": \"bg.street\",",
+        "}",
+        "",
+        "# Scene row each layer's row 0 lands on, in a 320x180 frame.  These mirror",
+        "# game/index.html -> drawParallax() -> ys exactly: sky at 0, far at",
+        "# GROUND_Y-52, mid at GROUND_Y-60, street at GROUND_Y-8 (GROUND_Y = 148).",
+        "LAYER_OFFSETS: dict[str, int] = {\"SKY\": 0, \"MID\": 88, \"FAR\": 96, \"STREET\": 140}",
+        "",
+        "# The sky is a 96-row tile in a 180-row frame.  Drawing it as a vertical",
+        "# tile at these two offsets covers scene -52..139 with no seam and no hole:",
+        "# 44 + 96 == 140, the street's top row.  See the integration note above.",
+        "SKY_TILE_OFFSETS: tuple[int, ...] = (-52, 44)",
         "",
         emit("SKY", sky),
         "",

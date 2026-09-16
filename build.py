@@ -21,6 +21,9 @@ RENDER_STEPS = [
     ("render sky layer", "render_sky.py"),
     ("render dog layer", "dog.py"),
     ("compose scene", "scene.py"),
+    ("render game player", "game/player.py"),
+    ("render game zombie", "game/zombie.py"),
+    ("render game effects", "game/effects.py"),
     ("pack game atlas", "export_game_atlas.py"),
     ("render game gif", "render_game_gif.py"),
 ]

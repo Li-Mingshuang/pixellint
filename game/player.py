@@ -35,16 +35,21 @@ The gun is one shape per orientation, reused verbatim:
     below the fist, so its highlight/mid/dark read survives the grip.
   * ``GUN_SIDE`` points right, level with the shoulder, in the shoot clip.  The
     three shoot frames move it by whole pixels only -- raise (12,12), FIRE
-    (15,10) with a muzzle flash, recover (13,11) -- so the kick is a rise plus
+    (14,10) with a muzzle flash, recover (13,11) -- so the kick is a rise plus
     an extension, and every step changes a comparable number of pixels.
 """
 
+import sys
 from pathlib import Path
 
 from PIL import Image
 
-from gamepalette import GAME_PALETTE
-from pixelkit import build, preview
+# The palette and the assertion helpers live at the repo root, so a direct
+# `python game/player.py` has to find them without being run as a module.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from gamepalette import GAME_PALETTE  # noqa: E402
+from pixelkit import build, preview  # noqa: E402
 
 # --------------------------------------------------------------------------
 # Canvas
@@ -231,11 +236,12 @@ def legs(g, spec, hip_y, force=False):
 # the pistol grip; ``arm_side`` reaches forward to a gun held at the shoulder.
 # --------------------------------------------------------------------------
 def arm_down(g, gun_x, gun_y):
-    """Gun low in front of the hip.  dx/dy of every part come from gun_x/y."""
-    dx = gun_x - 14
-    dy = gun_y - 16
+    """Gun low in front of the hip.  Every part rides off gun_x/gun_y, so the
+    whole arm swings with the weapon and the fist can never leave the grip."""
+    dx = gun_x - GUN_X
+    dy = gun_y - GUN_Y
     block(g, GUN_DOWN, gun_x, gun_y, force=True)          # gun first ...
-    for i, (y, x) in enumerate([(12, 11), (13, 11), (14, 12), (15, 13)]):
+    for y, x in [(12, 11), (13, 11), (14, 12), (15, 13)]:
         text(g, x + dx, y + dy, "KjjK", force=True)       # ... arm in front of it
     text(g, 13 + dx, 16 + dy, "KSSSK", force=True)        # ... then the fist
     text(g, 13 + dx, 17 + dy, "KSSsK", force=True)
@@ -251,15 +257,12 @@ def arm_side(g, gun_x, gun_y):
     the sleeve and the weapon stops reading.
     """
     hy = gun_y + 3                     # the grip row, the last gun block row
-    steps = max(1, hy - 12)
-    for i in range(steps + 1):         # 1. the near arm, behind the weapon
-        y = 12 + i
-        x = 10 + round(i * (gun_x + 1 - 10) / steps)
-        text(g, x, y, "KjjK", force=True)
+    for y in range(12, hy + 1):        # 1. the near arm, behind the weapon
+        text(g, min(gun_x, 10 + (y - 12)), y, "KjjK", force=True)
     block(g, GUN_SIDE, gun_x, gun_y, force=True)          # 2. the weapon
     text(g, gun_x + 1, hy, "KSSsK", force=True)           # 3. fist on the grip
     text(g, gun_x + 1, hy + 1, "KsssK", force=True)
-    text(g, gun_x + 4, hy - 1, "KSSK", force=True)        # support hand, foregrip
+    text(g, gun_x + 3, hy - 1, "KSSK", force=True)        # support hand, foregrip
 
 
 def flash(g, gun_x, gun_y):
@@ -275,7 +278,7 @@ def flash(g, gun_x, gun_y):
 LOW, HIGH = 1, 0
 TORSO_LOW, TORSO_HIGH = 11, 10
 HIP_LOW, HIP_HIGH = 19, 18
-GUN_X, GUN_Y = 14, 16
+GUN_X, GUN_Y = 15, 16      # idle carry: clear of the thigh, muzzle to row 26
 
 
 def idle_a():

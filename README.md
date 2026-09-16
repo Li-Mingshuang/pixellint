@@ -207,9 +207,17 @@ space to fire, `R` to restart, `M` to mute.
 
 Feedback is deliberate: muzzle flash with a real light cast, ejected casings with
 physics, recoil that shoves the player back, screen shake, hit flash, knockback,
-blood spray with persistent ground decals, gib bursts with a brief hitstop,
-footstep dust, a low-health vignette, and a synthesised audio set (no audio files
-— WebAudio oscillators and filtered noise).
+a hit marker that turns red on a kill, a 30-round magazine with an audible
+reload, blood spray with persistent ground decals, gib bursts with a brief
+hitstop, footstep dust, a low-health vignette, and a synthesised audio set (no
+audio files — WebAudio oscillators and filtered noise).
+
+The muzzle position is **measured out of the atlas**, not hard-coded:
+`export_game_atlas.py` records the rightmost opaque pixel of each sprite and the
+game reads the barrel tip from that. It used to be a magic `player.x + 13`,
+which put the flash two columns right and two rows above the actual barrel — a
+constant that silently drifts the moment the art is redrawn, and a measured one
+that cannot.
 
 ## Honest limitations
 

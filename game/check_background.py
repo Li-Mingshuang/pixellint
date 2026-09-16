@@ -59,7 +59,9 @@ from pixelkit import (  # noqa: E402
     adjacent_pairs, build, check_grid, luminance, report_separation, verdict,
 )
 
-from background import FAR, LAYER_OFFSETS, MID, SKY, STREET, Z_ORDER  # noqa: E402
+from background import (  # noqa: E402
+    ATLAS_KEYS, FAR, LAYER_OFFSETS, MID, SKY, SKY_TILE_OFFSETS, STREET, Z_ORDER,
+)
 
 ASSETS = ROOT / "assets"
 
@@ -174,13 +176,32 @@ def check_shape() -> tuple[list[str], list[str]]:
             report.append(f"  {name:6s} {w}x{h:3d} opaque {opaque_count(grid):5d} (100.0%) "
                           f"keys {''.join(sorted(set(''.join(grid))))}")
 
-    # the composite contract: the street's top row is where feet land
-    street_top = LAYER_OFFSETS["STREET"]
-    if street_top != GROUND_Y:
-        problems.append(f"STREET is composited at scene row {street_top}, but GROUND_Y is {GROUND_Y}")
-    report.append(f"  Z_ORDER {Z_ORDER}, offsets {LAYER_OFFSETS}, "
-                  f"STREET row 0 = scene row {street_top} = GROUND_Y")
+    # the composite contract: these are the rows game/index.html draws at
+    engine = {"SKY": 0, "FAR": GROUND_Y - 52, "MID": GROUND_Y - 60, "STREET": GROUND_Y - 8}
+    if LAYER_OFFSETS != engine:
+        problems.append(f"LAYER_OFFSETS {LAYER_OFFSETS} disagrees with the game's drawParallax "
+                        f"table {engine}")
+    if Z_ORDER != ["SKY", "FAR", "MID", "STREET"]:
+        problems.append(f"Z_ORDER {Z_ORDER} is not back-to-front")
+    if ATLAS_KEYS != {"SKY": "bg.sky", "FAR": "bg.far", "MID": "bg.mid", "STREET": "bg.street"}:
+        problems.append(f"ATLAS_KEYS {ATLAS_KEYS} do not match the keys the game looks up")
+    report.append(f"  Z_ORDER {Z_ORDER}, atlas keys {[ATLAS_KEYS[k] for k in Z_ORDER]}")
+    report.append(f"  LAYER_OFFSETS {LAYER_OFFSETS} == the game's drawParallax ys "
+                  f"(GROUND_Y {GROUND_Y} - 52 / -60 / -8)")
 
+    # the sky tile placement that closes the frame
+    t0, t1 = SKY_TILE_OFFSETS
+    n_tiles = len(SKY_TILE_OFFSETS)
+    covered_lo, covered_hi = t0, SKY_TILE_OFFSETS[-1] + len(SKY)
+    if t0 > 0 or covered_hi != LAYER_OFFSETS["STREET"]:
+        problems.append(f"SKY_TILE_OFFSETS {SKY_TILE_OFFSETS} do not close the frame: tiles cover "
+                        f"{covered_lo}..{covered_hi - 1}, the road starts at {LAYER_OFFSETS['STREET']}")
+    if any(b - a != len(SKY) for a, b in zip(SKY_TILE_OFFSETS, SKY_TILE_OFFSETS[1:])):
+        problems.append(f"SKY_TILE_OFFSETS {SKY_TILE_OFFSETS} are not one tile apart")
+    report.append(f"  sky tiled vertically at {SKY_TILE_OFFSETS} covers scene {covered_lo}.."
+                  f"{covered_hi - 1} in {n_tiles} tiles; the road takes over at "
+                  f"{LAYER_OFFSETS['STREET']} -> the 180-row frame has no hole")
+    return problems, report
     sky_keys = set("".join(SKY))
     if sky_keys - (SKY_BAND_KEYS | SKY_STAR_KEYS):
         problems.append(f"SKY uses keys outside bands+stars: {sorted(sky_keys - SKY_BAND_KEYS - SKY_STAR_KEYS)}")
@@ -431,9 +452,10 @@ def check_street_surface() -> tuple[list[str], list[str]]:
 def check_darkness() -> tuple[list[str], list[str]]:
     """MID has to read as the darker, more solid band -- measured, not claimed."""
     problems, report = [], []
-    far_off, mid_off = LAYER_OFFSETS["FAR"], LAYER_OFFSETS["MID"]
-    far_vis = range(0, mid_off - far_off)                       # FAR rows above MID
-    mid_vis = range(far_off + len(FAR) - mid_off, len(MID))     # MID rows below FAR
+    street_off = LAYER_OFFSETS["STREET"]
+    # each layer's visible window: the rows that survive above the road
+    far_vis = range(0, street_off - LAYER_OFFSETS["FAR"])
+    mid_vis = range(0, street_off - LAYER_OFFSETS["MID"])
 
     far_cov = coverage(FAR, far_vis.start, far_vis.stop - 1)
     mid_cov = coverage(MID, mid_vis.start, mid_vis.stop - 1)
@@ -459,21 +481,34 @@ def check_darkness() -> tuple[list[str], list[str]]:
                         f"its mass is carried by lit faces, so it does not read as a dark mass")
 
     sky_band = [luminance(SKY[y][x], GAME_PALETTE)
-                for y in range(mid_off, len(SKY)) for x in range(GAME_W)]
+                for y in range(LAYER_OFFSETS["MID"], len(SKY)) for x in range(GAME_W)]
     sky_band_mean = sum(sky_band) / len(sky_band)
-    report.append(f"  sky behind MID     rows {mid_off}..{len(SKY) - 1} mean lum {sky_band_mean:.4f}; "
-                  f"both layers sit darker than it (FAR {means['FAR'] < sky_band_mean}, "
-                  f"MID {means['MID'] < sky_band_mean})")
+    report.append(f"  sky behind MID     rows {LAYER_OFFSETS['MID']}..{len(SKY) - 1} mean lum "
+                  f"{sky_band_mean:.4f}; both layers sit darker than it "
+                  f"(FAR {means['FAR'] < sky_band_mean}, MID {means['MID'] < sky_band_mean})")
     if means["MID"] >= sky_band_mean:
         problems.append("MID is not darker than the sky it stands against")
 
-    report.append("  NOTE  FAR is a `5` near-black silhouette by palette design (lum 0.032), so "
-                  "no honest arrangement makes MID's")
-    report.append("        `C` concrete bodies darker PER OPAQUE PIXEL than FAR.  MID earns "
-                  "'darker and more solid' as")
-    report.append("        coverage and as mass: it blanks ~2.7x more of its window, and 64% of "
-                  "its pixels are the dark")
-    report.append("        tones `c`/`5`, not the lit `C` faces.  Reported, not faked.")
+    report.append(f"  NOTE  FAR is a `5` near-black silhouette by palette design (lum 0.032), so "
+                  f"no honest arrangement makes MID's")
+    report.append(f"        `C` concrete bodies darker PER OPAQUE PIXEL than FAR.  MID earns "
+                  f"'darker and more solid' as")
+    report.append(f"        coverage and as mass: it blanks {mid_cov / far_cov:.1f}x more of its "
+                  f"window, and {dark * 100:.0f}% of its pixels are")
+    report.append(f"        the dark tones `c`/`5`, not the lit `C` faces.  Reported, not faked.")
+
+    # integration probe: with the game's actual offsets, what is left uncovered?
+    filled = composite_image()
+    px = filled.load()
+    holes = [(x, y) for y in range(GAME_H) for x in range(GAME_W) if px[x, y][3] == 0]
+    band = [c for c in holes if LAYER_OFFSETS["MID"] <= c[1] < LAYER_OFFSETS["STREET"]]
+    report.append(f"  composite holes    {len(holes)} of {GAME_W * GAME_H} cells uncovered "
+                  f"({len(holes) / (GAME_W * GAME_H) * 100:.1f}%), {len(band)} of them in scene "
+                  f"rows {LAYER_OFFSETS['MID']}..{LAYER_OFFSETS['STREET'] - 1}")
+    report.append(f"        (FAR and MID are transparent where empty by design and the sky is a "
+                  f"96-row tile in a 180-row")
+    report.append(f"        frame, so the game must draw SKY_TILE_OFFSETS {SKY_TILE_OFFSETS} instead "
+                  f"of once at 0.)")
     return problems, report
 
 
@@ -490,18 +525,15 @@ def paste_clipped(base: Image.Image, layer: Image.Image, y: int) -> None:
 
 
 def composite_image() -> Image.Image:
-    """The four layers in z-order, as a viewer sees them.
+    """The four layers in the z-order and at the offsets the game actually uses.
 
-    The sky is the furthest layer, so the frame below the 96-row sky tile is
-    filled with the sky's own last row -- that is what is behind MID there, and
-    it keeps the panel honest without inventing art.
+    Nothing is filled in behind them: a cell no layer covers stays transparent,
+    which is exactly what the game draws there.  The final panel flattens that
+    onto the sheet colour, so an uncovered band is visible rather than papered
+    over -- `check_darkness` counts it and prints the placement fix.
     """
-    base = Image.new("RGBA", (GAME_W, GAME_H), (0, 0, 0, 255))
-    paste_clipped(base, native_image("SKY"), LAYER_OFFSETS["SKY"])
-    if len(SKY) < GAME_H:
-        fill = Image.new("RGBA", (GAME_W, GAME_H - len(SKY)), GAME_PALETTE[SKY[-1][0]])
-        paste_clipped(base, fill, len(SKY))
-    for name in ("FAR", "MID", "STREET"):
+    base = Image.new("RGBA", (GAME_W, GAME_H), (0, 0, 0, 0))
+    for name in Z_ORDER:
         paste_clipped(base, native_image(name), LAYER_OFFSETS[name])
     return base
 
