@@ -118,6 +118,13 @@ The silhouette went from a 6px neck straight to a 12px torso in a single row.
 Fixed by making the shoulder row 10px wide with the arms flaring out on the row
 below.
 
+**5. CI was asserting the wrong thing.**
+The reproducibility check was `git diff --exit-code -- assets` — byte equality
+of generated files. Green locally, red on Linux, with the build itself passing.
+PNG bytes differ across platforms and Pillow/zlib builds; the *pixels* do not.
+Rewritten as `verify_reproducible.py`, which decodes and compares. A verification
+project that ships a bogus assertion is worth less than nothing.
+
 ---
 
 ## Quick start
@@ -127,9 +134,16 @@ pip install -r requirements.txt
 python build.py          # renders every asset, then runs the full suite
 ```
 
-`build.py` exits non-zero on any failure, which is what CI enforces. The
-workflow also re-runs the build and asserts `git diff --exit-code -- assets`, so
-the committed PNGs are provably reproducible from the source grids.
+`build.py` exits non-zero on any failure, which is what CI enforces.
+
+`verify_reproducible.py` then proves the committed assets still match the source
+grids — **at the pixel level, not the byte level**. That distinction cost me a
+red CI run: the first version of this check was `git diff --exit-code -- assets`,
+asserting byte equality. It passed on Windows and failed on Linux while the
+build itself succeeded, because PNG bytes legitimately differ between platforms
+and Pillow/zlib builds even when the decoded image is identical. Asserting bytes
+was simply the wrong claim. The check now decodes every asset — including every
+GIF frame, plus its duration and loop flag — and compares pixels.
 
 Individual steps:
 
@@ -147,6 +161,7 @@ python check_sprite.py   # the assertion suite
 | `walk_cycle.py` | the four walk frames, composed from shared head/torso/leg blocks |
 | `check_sprite.py` | structure, colour separation, and animation assertions |
 | `build.py` | render everything, then verify |
+| `verify_reproducible.py` | prove the committed assets match the grids, pixel for pixel |
 
 ---
 

@@ -22,5 +22,5 @@ jobs:
       - name: Rebuild assets and verify every assertion
         run: python build.py
 
-      - name: Confirm the committed assets are reproducible
-        run: git diff --exit-code -- assets
+      - name: Confirm the committed assets reproduce pixel-for-pixel
+        run: python verify_reproducible.py
