@@ -38,6 +38,7 @@ RENDER_STEPS = [
     ("render walk cycle", "walk_cycle.py"),
     ("render sky layer", "render_sky.py"),
     ("render dog layer", "dog.py"),
+    ("render mechpup", "mechdog.py"),
     ("compose scene", "scene.py"),
     ("render game player", "game/player.py"),
     ("render game zombie", "game/zombie.py"),

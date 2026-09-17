@@ -424,6 +424,7 @@ that cannot.
 | `evaluate.py` | measures cost, slack and coverage; not a gate |
 | `render_sprite.py` `walk_cycle.py` | the 16×32 farmer and his walk |
 | `sky.py` `ground.py` `props.py` `dog.py` | meadow layers |
+| `mechdog.py` | the mech-suited puppy, 24×18 × 4 frames, in the game palette |
 | `game/player.py` `game/zombie.py` `game/background.py` `game/effects.py` | game art |
 | `game/index.html` | the game |
 | `export_game_atlas.py` | packs sprites into a self-contained `game/assets.js` |

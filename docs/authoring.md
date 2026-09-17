@@ -27,7 +27,21 @@ Every module here has a module docstring naming **size, base row, and palette
 keys**. Do that; it is the cheapest documentation there is and the composer needs
 it.
 
-**2. Assert the shape.** Not the picture — the shape.
+**2b. Declare what you ship, and in which palette.** If your module assembles its
+frames from named blocks, add:
+
+```python
+SHIPPED = ("FRAMES",)          # HELM/TORSO/LEGS_* are blocks, not deliverables
+PALETTE = GAME_PALETTE         # only if you are not drawing in the scene palette
+```
+
+Without `SHIPPED`, `evaluate.py` measures the frames *and* every block they are
+assembled from, counting the same authored cells twice. The alternative is a
+hand-maintained exclusion list inside the measuring tool, and that list went stale
+twice in one session. `PALETTE` exists because directory grouping is not enough:
+`mechdog.py` lives at the repo root but is drawn in the game's palette.
+
+**3. Assert the shape.** Not the picture — the shape.
 
 ```python
 from pixelkit import check_grid, report_separation

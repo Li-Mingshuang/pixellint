@@ -137,6 +137,11 @@ FRAMES: list[list[str]] = [
     frame(raised=True, legs=LEGS_LIFT_RIGHT),
 ]
 
+# What this module delivers. HEAD, TORSO and the LEGS_* blocks are composition
+# blocks that FRAMES is assembled from, so measuring both would double-count the
+# same authored cells. See docs/authoring.md.
+SHIPPED = ("FRAMES",)
+
 SCALE = 8
 GIF_SCALE = 16
 BG = (58, 62, 74)

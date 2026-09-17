@@ -55,24 +55,39 @@ def _import(name, *paths):
     return importlib.import_module(name)
 
 
-# Modules that may export art. Anything grid-shaped found in them is measured, so
-# adding an art module does not require editing this file -- the same lesson as
-# build.py's recursive check discovery: a hand-maintained list silently omits the
-# newest thing, and the omission looks like a clean report.
-ART_MODULES = [
-    ("meadow", "render_sprite"), ("meadow", "walk_cycle"), ("meadow", "ground"),
-    ("meadow", "props"), ("meadow", "sky"), ("meadow", "dog"),
-    ("meadow", "farmprops"), ("meadow", "foliage"), ("meadow", "yardprops"),
-    ("game", "background"), ("game", "player"), ("game", "zombie"),
-    ("game", "effects"),
-]
+# Art modules are found by SCANNING the tree, not from a list. The list version
+# went stale twice in one session -- first covering 28 of 44 assets, then missing
+# mechdog.py the moment it was added -- and each time the report looked complete.
+#
+# Importing is safe: every module here guards its entry point behind
+# `if __name__ == "__main__"`, so importing one only defines names.
+SKIP_MODULES = {
+    "pixelkit", "gamepalette", "evaluate", "build", "plan_scene",
+    "scene", "export_game_atlas", "render_game_gif", "verify_reproducible",
+    "check_game", "check_thresholds", "conftest",
+}
+
+
+def _candidate_modules():
+    out = []
+    for p in sorted(HERE.glob("*.py")):
+        if p.stem.startswith("_") or p.stem.startswith("check_") or p.stem in SKIP_MODULES:
+            continue
+        out.append(("meadow", p.stem))
+    gp = HERE / "game"
+    if gp.is_dir():
+        for p in sorted(gp.glob("*.py")):
+            if p.stem.startswith("_") or p.stem.startswith("check_") or p.stem in SKIP_MODULES:
+                continue
+            out.append(("game", p.stem))
+    return out
 
 
 # Composition blocks, not deliverables. walk_cycle.FRAMES is ASSEMBLED from these,
-# so measuring both would double-count the same authored cells. This list is a
-# wart: the honest fix is for each module to declare its exports (an `__all__` or
-# a SHIPPED tuple) and for this to read that instead. It is listed here, visibly,
-# rather than hidden by a naming convention.
+# so measuring both would double-count the same authored cells.
+#
+# This list is a fallback for modules that have not adopted the `SHIPPED`
+# convention (see below). Prefer declaring exports in the module itself.
 INTERNAL_BLOCKS = {
     "HEAD", "HEAD_DOWN", "TORSO", "TORSO_LEFT_ARM_FWD", "TORSO_RIGHT_ARM_FWD",
     "LEGS_PLANTED", "LEGS_LIFT_LEFT", "LEGS_LIFT_RIGHT",
@@ -96,30 +111,45 @@ def discover():
     sys.path.insert(0, str(HERE / "game"))
     out, skipped = [], []
 
-    for group, module_name in ART_MODULES:
+    for group, module_name in _candidate_modules():
         try:
             mod = importlib.import_module(module_name)
         except Exception as exc:
             skipped.append((group, module_name, f"{type(exc).__name__}: {exc}"))
             continue
 
+        # A module may DECLARE what it ships and which palette it draws in.
+        #
+        # SHIPPED matters because a module that assembles its frames from named
+        # blocks would otherwise report both the frames and the blocks, counting
+        # the same authored cells twice. The only alternative is a growing
+        # hand-maintained exclusion list in this file, which is exactly the thing
+        # that keeps going stale here.
+        #
+        # PALETTE matters because grouping by directory is not enough: mechdog.py
+        # lives at the repo root but is drawn in the game's palette, so validating
+        # it against the scene palette reported `V` as undefined.
+        shipped = getattr(mod, "SHIPPED", None)
+        palette = getattr(mod, "PALETTE", None) or (
+            GAME_PALETTE if group == "game" else SCENE_PALETTE)
+
         def add(name, value, top=True):
             if name in INTERNAL_BLOCKS:
                 return
             if _is_clip(value):
-                out.append((group, module_name, name, list(value)))
+                out.append((group, module_name, name, list(value), palette))
             elif _is_grid(value):
-                out.append((group, module_name, name, [value]))
+                out.append((group, module_name, name, [value], palette))
             elif isinstance(value, dict):
                 for k, v in value.items():
                     # a container is a bag of deliverables, so its keys are the
                     # names -- "PLAYER.walk" not "PLAYER.PLAYER.walk"
                     add(str(k), v, top=False)
 
-        for attr in dir(mod):
-            if attr.startswith("_"):
+        for attr in (shipped if shipped else dir(mod)):
+            if isinstance(attr, str) and attr.startswith("_"):
                 continue
-            value = getattr(mod, attr)
+            value = getattr(mod, attr, None)
             if callable(value):
                 continue
             add(attr, value)
@@ -127,14 +157,14 @@ def discover():
     # de-duplicate by content: a module often aliases one grid under two names,
     # and TREE may appear both bare and inside PROPS
     seen, unique = set(), []
-    for group, module, name, frames in out:
+    for group, module, name, frames, palette in out:
         key = (group, module, tuple(f[0] + "|" + str(len(f)) + "|" + f[-1]
                                     for f in frames), len(frames))
         if key in seen:
             continue
         seen.add(key)
         # prefer the shortest name (the bare export over the container path)
-        unique.append((group, module, name, frames))
+        unique.append((group, module, name, frames, palette))
     return unique, skipped
 
 
@@ -244,8 +274,7 @@ def main() -> int:
         return 1
 
     rows, skipped = [], list(load_skipped)
-    for group, mod, name, frames in assets:
-        palette = GAME_PALETTE if group == "game" else SCENE_PALETTE
+    for group, mod, name, frames, palette in assets:
         try:
             per = [measure(g, palette) for g in frames]
         except Exception as exc:
