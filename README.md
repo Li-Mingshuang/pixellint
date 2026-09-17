@@ -230,6 +230,85 @@ The clip lengths now come out of the atlas (`window.CLIPS`) rather than being
 assumed in the renderer, which is the same fix as the muzzle: measure the art,
 do not guess at it.
 
+## Measuring it, not just gating it
+
+Every other script here answers *is it acceptable*. `evaluate.py` answers *how
+much did it cost, and how much room was there to spare* — which is the question
+you need answered before attempting a harder target.
+
+```bash
+python evaluate.py --json --markdown
+```
+
+It measures all 28 assets / 61 grids / **121,870 cells** / **603 adjudicated
+colour pairs**, reporting per asset: cells, distinct palette keys, adjacent pairs,
+**relative margin**, warnings, hard failures, and check wall time.
+
+`margin` is relative: `0.0` means the pair sits exactly on its threshold, `0.5`
+means it clears it by half again. It has to be relative, because a pair can pass
+by either of two mechanisms with different units — chroma (ΔE against a floor) or
+a lightness edge (a ratio against 1.7). A first version reported the absolute
+`dE - floor`, which flattened every value-governed pair to `0.00` and made a
+healthy sky gradient look like it was about to fail.
+
+### By complexity tier
+
+| tier | cells | assets | grids | cells total | keys | pairs | min margin | mean check | ms / 1k cells |
+|---|---|---|---|---|---|---|---|---|---|
+| XS | ≤ 1024 | 12 | 25 | 3,762 | 13 | 66 | 0.02 | 0.6 ms | 1.96 |
+| S | ≤ 4096 | 10 | 30 | 20,508 | 15 | 470 | 0.02 | 5.1 ms | 2.51 |
+| M | ≤ 16384 | 3 | 3 | 28,480 | 9 | 49 | 0.04 | 37.4 ms | 3.94 |
+| L | ≤ 65536 | 3 | 3 | 69,120 | 6 | 18 | 0.01 | 59.1 ms | 2.57 |
+
+Check cost is roughly **linear in cells** (2–4 ms per 1,000), which is what makes
+the pipeline viable at larger canvas sizes.
+
+### Generation time
+
+```
+full build              11.13 s
+  render, 10 steps       5.80 s
+    game GIF             2.37 s   (headless game run + PIL frame compositing)
+    scene compose        1.52 s   (16 frames of 160x96)
+    the other 8 steps    ~1.9 s   (~230 ms each, of which ~200 ms is Python
+                                   interpreter startup)
+  checks, 12 scripts     ~5.3 s
+```
+
+Roughly 2 of those 11 seconds are interpreter startup across ten separate
+processes. That is the obvious thing to fix if the build ever needs to be fast.
+
+### The finding that matters
+
+**Almost every asset has a margin between 0.01 and 0.15 — it clears its
+threshold by 1–15%.** Only the dog (0.44), the cloud band (0.57) and the far
+skyline (7.65) have real slack.
+
+That is not a quality score. It is a measurement of how hard the palette is
+squeezing the art: this palette has almost no headroom, so every new asset will
+be squeezed the same way. The healthy way to work is to design headroom into a
+palette up front, not to tune art until it just passes.
+
+### What these numbers are not
+
+- **margin is readability slack, not beauty.** An asset can sit far above every
+  floor and still be ugly, and the pipeline cannot tell.
+- **cells is an authoring-surface proxy, not difficulty.** A 30,720-cell sky
+  gradient is far easier than a 512-cell face, because the gradient was
+  generated and the face was reasoned about cell by cell.
+- **check_ms is assertion cost only.** It excludes the cost of authoring the art,
+  which is where the real spend is.
+- **Token cost is not instrumented at all.** There is currently no way to say
+  what any asset cost in tokens; that needs per-agent accounting from the harness.
+- **Iteration count is not recorded**, though the pipeline could record it — each
+  check script would only have to count its own runs. It is the most direct
+  available proxy for "how hard was this target" and it is simply missing.
+
+To turn any of this into a real quality metric you would have to **calibrate the
+proxy against human ratings**: score assets by hand, then check whether the ΔE
+margin actually correlates. Until that is done, the margin proves the art is
+close to the line and nothing more.
+
 ## Playability is asserted too
 
 A game can pass every art check and still be unplayable. `game/smoke_test.mjs`

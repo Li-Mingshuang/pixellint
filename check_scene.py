@@ -112,9 +112,15 @@ def main(argv: list[str]) -> int:
     # fence's own wood brown and stood on top of it, and the rock sat inside the
     # cottage's stone foundation in the same stone. Same colour *and* adjacent
     # makes two objects read as one.
+    #
+    # Depth counts as distance. A barrel in the foreground at base row 90 and a
+    # fence at base row 76 read as two separate objects even when they overlap in
+    # x, because the depth cue separates them -- so the check only fires when the
+    # pair is close in BOTH x and depth.
     print("\n-- composition: no object may share a colour AND a position ----")
     comp = spec.get("composition", {})
     min_gap = comp.get("min_gap", 8)
+    depth_close = comp.get("depth_close", 8)
     need_shared = comp.get("shared_colours", 2)
     ignore = set(comp.get("ignore_colours", ["K"]))
 
@@ -127,6 +133,7 @@ def main(argv: list[str]) -> int:
         placements.append({
             "name": layer["name"],
             "x": layer["x"],
+            "base": layer["base"],
             "width": len(one[0]),
             "colours": cols,
         })
@@ -137,13 +144,15 @@ def main(argv: list[str]) -> int:
             a, b = placements[i], placements[j]
             shared = a["colours"] & b["colours"]
             gap = max(b["x"] - (a["x"] + a["width"]), a["x"] - (b["x"] + b["width"]))
-            both_bad = len(shared) >= need_shared and gap < min_gap
+            dz = abs(a["base"] - b["base"])
+            separable = gap >= min_gap or dz >= depth_close
+            both_bad = len(shared) >= need_shared and not separable
             tag = "FAIL " if both_bad else "ok   "
             if both_bad:
                 conflicts.append(
                     f"{a['name']}/{b['name']}: share {len(shared)} colour(s) "
-                    f"{sorted(shared)} and only {gap}px apart (need >= {min_gap})")
-            print(f"  {tag} {a['name']:<7} / {b['name']:<7}  gap={gap:>4}px  "
+                    f"{sorted(shared)}, only {gap}px apart in x and {dz} rows in depth")
+            print(f"  {tag} {a['name']:<9} / {b['name']:<9}  dx={gap:>4}px  dz={dz:>3}  "
                   f"shared={sorted(shared) if shared else 'none'}")
     problems += conflicts
 

@@ -10,3 +10,6 @@ venv/
 _*.py
 _*.txt
 _*.log
+
+# build/cache artifacts
+game/frames.json

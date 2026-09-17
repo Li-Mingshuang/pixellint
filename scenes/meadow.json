@@ -9,8 +9,9 @@
   "_comment": "Layers are drawn in array order, so later entries occlude earlier ones. Each layer names a module and the attribute in it holding either one grid or a list of frames. Use \"y\" for a fixed row, or \"base\" to pin the grid's lowest opaque row to a scene row (which is how things stand on the ground).",
 
   "composition": {
-    "_comment": "Objects may share a colour, or stand close together, but not both -- see pixelkit.object_conflicts. 'K' is excluded because it is the universal outline every object uses.",
+    "_comment": "Objects may share a colour, or stand close together, but not both. 'K' is excluded because it is the universal outline every object uses. 'depth_close' is how many base rows apart two objects must be before overlapping in x stops mattering: a foreground barrel at base 90 and a background fence at base 76 read as two separate things even when they overlap in x, because the depth cue separates them. Raising it makes the layout stricter.",
     "min_gap": 8,
+    "depth_close": 8,
     "shared_colours": 2,
     "ignore_colours": ["K"]
   },
