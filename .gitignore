@@ -13,3 +13,6 @@ _*.log
 
 # build/cache artifacts
 game/frames.json
+
+# pipeline run log (local difficulty telemetry)
+.pipeline-runs.jsonl

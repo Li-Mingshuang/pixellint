@@ -191,6 +191,47 @@ def measure(grid, palette) -> dict:
     }
 
 
+def attempt_stats(log: Path) -> dict:
+    """Per check script: attempts before its most recent success.
+
+    This is the closest thing here to a difficulty measure. `cells` measures the
+    authoring surface and the colour margin measures palette slack; neither says
+    how much iteration a target actually cost. The build appends every check
+    outcome to `.pipeline-runs.jsonl`, so "it took nine tries to go green" is
+    recoverable -- but only from runs that happened after logging was added, and
+    only per SCRIPT, not per asset. Both limits are stated in the report rather
+    than glossed.
+    """
+    if not log.exists():
+        return {}
+    entries = []
+    for line in log.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except Exception:
+            continue
+    by_script: dict[str, list[bool]] = {}
+    for e in entries:
+        by_script.setdefault(e.get("script", "?"), []).append(bool(e.get("ok")))
+
+    out = {}
+    for script, oks in by_script.items():
+        if script == "__build__" or True not in oks:
+            continue
+        last = len(oks) - 1 - oks[::-1].index(True)
+        back = 0
+        i = last - 1
+        while i >= 0 and not oks[i]:
+            back += 1
+            i -= 1
+        out[script] = {"attempts_to_green": back + 1, "total_runs": len(oks),
+                       "failures_total": oks.count(False)}
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
@@ -269,7 +310,12 @@ def main() -> int:
     total_cells = sum(r["cells"] for r in rows)
     total_pairs = sum(r["pairs"] for r in rows)
     total_ms = sum(r["check_ms"] for r in rows)
-    bad = [r for r in rows if r["failures"] or r["struct"]]
+    # Only hard colour failures are this script's business. Structural notes are
+    # reported separately and are often EXPECTED -- a skyline made of separate
+    # buildings reports floating pixels by definition, because check_grid requires
+    # one connected body. Treating those as a non-zero exit made the report look
+    # like a failure on every run.
+    bad = [r for r in rows if r["failures"]]
     print("\n-- totals " + "-" * 85)
     print(f"  assets           : {len(rows)}  ({sum(r['frames'] for r in rows)} grids)")
     print(f"  cells authored   : {total_cells:,}")
@@ -295,6 +341,23 @@ def main() -> int:
         print("  reports floating pixels by definition, because check_grid requires one")
         print("  connected body. Those layers prove their real structure with a cyclic")
         print("  flood fill instead; see game/check_background.py and check_sky.py.")
+
+    stats = attempt_stats(HERE / ".pipeline-runs.jsonl")
+    if stats:
+        print("\n-- iteration, per check script " + "-" * 62)
+        print(f"  {'script':<34} {'attempts to green':>17} {'total runs':>11} {'failures':>9}")
+        for script, s in sorted(stats.items(),
+                                key=lambda kv: -kv[1]["attempts_to_green"]):
+            print(f"  {script:<34} {s['attempts_to_green']:>17} "
+                  f"{s['total_runs']:>11} {s['failures_total']:>9}")
+        print("  Attempts to green is consecutive failures before the most recent")
+        print("  success. It is the closest thing here to a difficulty measure, and it")
+        print("  is limited: it only covers runs since logging was added, and it is per")
+        print("  SCRIPT, not per asset.")
+    else:
+        print("\n-- iteration " + "-" * 81)
+        print("  no run log yet. build.py appends every check outcome to")
+        print("  .pipeline-runs.jsonl, so this fills in from the next build onwards.")
 
     print("\n-- what these numbers are NOT " + "-" * 64)
     print("  * 'margin' is readability slack, not beauty. An asset can sit far")
@@ -330,6 +393,18 @@ def main() -> int:
                          f"{r['frames']} | {r['tier']} | {r['cells']} | {r['keys']} | "
                          f"{r['pairs']} | {m} | {r['warnings']} | {r['failures']} | "
                          f"{r['check_ms']:.1f} |")
+        lines += ["", "## Iteration", "",
+                  "Attempts-to-green is consecutive failures before a check's most "
+                  "recent success, read from `.pipeline-runs.jsonl`. It is the closest "
+                  "thing here to a difficulty measure, and it is limited: it covers "
+                  "only runs since logging was added, and it is per script rather than "
+                  "per asset.", "",
+                  "| script | attempts to green | total runs | failures |",
+                  "|---|---|---|---|"]
+        for script, s in sorted(attempt_stats(HERE / ".pipeline-runs.jsonl").items(),
+                                key=lambda kv: -kv[1]["attempts_to_green"]):
+            lines.append(f"| `{script}` | {s['attempts_to_green']} | "
+                         f"{s['total_runs']} | {s['failures_total']} |")
         lines += ["", "## What these numbers are not", "",
                   "- **margin is readability slack, not beauty.** An asset can sit far "
                   "above every floor and still be ugly. The pipeline cannot tell.",

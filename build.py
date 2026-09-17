@@ -9,11 +9,29 @@ Render steps run first, in dependency order. Checks are then discovered by glob
 anyone having to remember to register them here.
 """
 
+import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+
+# Every check outcome is appended here. Not a gate, not an artifact -- it exists so
+# "how many attempts did this take to go green" can be answered, which is the most
+# direct available proxy for how hard a target actually was. Nothing else in the
+# pipeline records difficulty: cell counts measure the authoring surface, and the
+# colour margin measures palette slack.
+RUN_LOG = HERE / ".pipeline-runs.jsonl"
+
+
+def record(script: str, ok: bool) -> None:
+    try:
+        with RUN_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"script": script, "ok": bool(ok),
+                                 "ts": round(time.time(), 1)}) + "\n")
+    except Exception:
+        pass          # logging must never break the build
 
 RENDER_STEPS = [
     ("render idle sprite", "render_sprite.py"),
@@ -63,7 +81,9 @@ def main() -> int:
     failed = []
     for script in checks:
         print(f"\n=== verify: {script} " + "=" * max(0, 46 - len(script)))
-        if run(HERE / script) != 0:
+        ok = run(HERE / script) == 0
+        record(script, ok)
+        if not ok:
             failed.append(script)
 
     print("\n" + "=" * 60)
@@ -77,6 +97,7 @@ def main() -> int:
         print(f"\n=== report: {label} " + "=" * max(0, 46 - len(label)))
         subprocess.call([sys.executable, *argv], cwd=HERE)
 
+    record("__build__", True)
     print("\nAll steps passed.")
     return 0
 

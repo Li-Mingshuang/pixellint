@@ -347,6 +347,18 @@ bullet travels and kills a zombie and scores, a swarm can kill the player,
 nothing goes NaN over 25 simulated seconds of held input, entity counts stay
 bounded, and `render()` does not throw. 12 assertions, no browser required.
 
+## Deeper reading
+
+The README is the argument. [`docs/`](docs/) goes deeper on the machinery:
+
+| doc | what it covers |
+|---|---|
+| [rules.md](docs/rules.md) | the separation rule in full, and the four times its calibration was wrong |
+| [palettes.md](docs/palettes.md) | designing a palette that will not fight you (ladder first, colours second) |
+| [scenes.md](docs/scenes.md) | the scene spec, depth bands, the layout solver, the composition rule |
+| [authoring.md](docs/authoring.md) | adding a layer from scratch, and the discipline for parallel authoring agents |
+| [decisions.md](docs/decisions.md) | a log of what changed, why, and **what was reversed** |
+
 ## Quick start
 
 ```bash
