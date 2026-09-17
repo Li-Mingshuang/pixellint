@@ -178,20 +178,37 @@ def armour(sil) -> list[list[str]]:
 # ---------------------------------------------------------------------------
 # PATCHES: hand-authored detail, pasted at an offset. Irregular by nature.
 # ---------------------------------------------------------------------------
-COCKPIT = [                                    # 14 wide, pasted at (30, 25)
-    "KKKKKKKKKKKKKK",
-    "KWW22222222MMK",                          # glass glint, upper left
-    "K2HHHHHHHHHH2K",                          # the dog's head, behind glass
-    "K2HKHHHHKHHH2K",                          # ears
-    "K2HHKHHKHHHH2K",
-    "K2HHHHHHHHHH2K",
-    "K2HSVHHHVSHH2K",                          # eyes
-    "K2HSSSSSSSSH2K",                          # muzzle
-    "K2HSSKKKKSSH2K",                          # mouth
-    "K2HHSSSSSSHH2K",
-    "K22HHHHHHHH22K",
-    "K222222222222K",
-    "KKKKKKKKKKKKKK",
+# The cockpit. This is the whole point of the sprite, so it is the one part that
+# got the most hand work: 18x20, pasted into the chest at (28, 23).
+#
+# The dog is SEATED AND OPERATING, not just a head behind glass:
+#   rows  2-11  the dog's head, ears up, in a frame of cockpit interior
+#   rows 11-14  shoulders and body, seated upright
+#   rows 15-16  both forepaws reaching forward, gripping the control sticks
+#   rows 17-18  the instrument panel, lit
+# The `B` at the sides is the seat's roll bar, which is what makes it read as an
+# interior rather than a window.
+COCKPIT = [                                    # 18 wide, pasted at (28, 23)
+    "KKKKKKKKKKKKKKKKKK",
+    "KWW22222222222MMMK",                      # glass glint, upper left
+    "K2BBBBBBBBBBBBBB2K",                      # seat roll bar
+    "K2BHHHHHHHHHHHHB2K",                      # dog's head
+    "K2BHKHHHHHHHHKHB2K",                      # ear tips
+    "K2BHHKHHHHHHKHHB2K",                      # ears
+    "K2BHHHHHHHHHHHHB2K",
+    "K2BHSVHHHHHHVSHB2K",                      # eyes
+    "K2BHSSSSSSSSSSHB2K",                      # muzzle
+    "K2BHSSKKKKKKSSHB2K",                      # mouth
+    "K2BHHSSSSSSSSHHB2K",                      # chin
+    "K2BHHHHHHHHHHHHB2K",                      # neck
+    "K2BHHHHHHHHHHHHB2K",                      # shoulders
+    "K22HHHHHHHHHHHH22K",                      # body, seated
+    "K22HHHHHHHHHHHH22K",
+    "K2SSHHHHHHHHHHSS2K",                      # forepaws reaching forward
+    "K2SBHHHHHHHHHHSB2K",                      # gripping the sticks
+    "K2VYBBBBBBBBBBYV2K",                      # instrument panel, lit
+    "K2222222222222222K",
+    "KKKKKKKKKKKKKKKKKK",
 ]
 
 VISOR = [                                      # 16 wide, pasted at (8, 24)
@@ -253,7 +270,7 @@ KNEE_R = [                                     # 10 wide, pasted at (78, 34)
     "KKKKKKKKKK",
 ]
 
-INSIGNIA = [                                   # 8 wide, pasted at (46, 28)
+INSIGNIA = [                                   # 8 wide, pasted at (66, 28)
     "KKKKKKKK",
     "KYYYYYYK",
     "KYKKKKYK",
@@ -295,8 +312,8 @@ PATCHES = [
     (8, 24, VISOR),
     (27, 5, PAULDRON_L),
     (27, 47, PAULDRON_R),
-    (30, 25, COCKPIT),
-    (46, 28, INSIGNIA),
+    (28, 23, COCKPIT),
+    (66, 28, INSIGNIA),
     (56, 8, HAND),
     (56, 44, HAND_R),
     (78, 20, KNEE),
@@ -342,7 +359,8 @@ FRAMES = [
 ]
 
 FRAME_MS = 180
-SCALE = 4
+SCALE = 4          # preview sheet and GIF
+HERO_SCALE = 8     # single-frame hero, for actually looking at the detail
 BG = GAME_PALETTE["R"]
 
 
@@ -361,7 +379,8 @@ def main() -> None:
     sheet.save(out / "mech_preview.png")
 
     build(FRAMES[0], GAME_PALETTE).resize(
-        (W * 3, H * 3), Image.Resampling.NEAREST).save(out / "mech_hero.png")
+        (W * HERO_SCALE, H * HERO_SCALE), Image.Resampling.NEAREST).save(
+            out / "mech_hero.png")
 
     gif = [preview(im, SCALE, BG[:3]).convert("RGB").convert(
         "P", palette=Image.Palette.ADAPTIVE, colors=64) for im in images]

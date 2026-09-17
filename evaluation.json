@@ -18,7 +18,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.15
+      "check_ms": 2.19
     },
     {
       "group": "meadow",
@@ -38,7 +38,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.27
+      "check_ms": 0.76
     },
     {
       "group": "meadow",
@@ -58,7 +58,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.23
+      "check_ms": 0.46
     },
     {
       "group": "meadow",
@@ -78,7 +78,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.2
+      "check_ms": 0.29
     },
     {
       "group": "meadow",
@@ -98,7 +98,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.22
+      "check_ms": 0.34
     },
     {
       "group": "meadow",
@@ -118,7 +118,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.26
+      "check_ms": 0.38
     },
     {
       "group": "meadow",
@@ -138,7 +138,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.17
+      "check_ms": 0.23
     },
     {
       "group": "meadow",
@@ -158,7 +158,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.31
+      "check_ms": 0.43
     },
     {
       "group": "meadow",
@@ -178,7 +178,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.6
+      "check_ms": 0.87
     },
     {
       "group": "meadow",
@@ -198,7 +198,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.13
+      "check_ms": 0.21
     },
     {
       "group": "meadow",
@@ -218,7 +218,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.14
+      "check_ms": 0.2
     },
     {
       "group": "meadow",
@@ -238,7 +238,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 12.81
+      "check_ms": 16.29
     },
     {
       "group": "meadow",
@@ -250,15 +250,15 @@
       "cells": 24576,
       "tier": "L",
       "keys": 14,
-      "pairs": 113,
-      "by_value": 101,
+      "pairs": 149,
+      "by_value": 125,
       "margin": 0.148,
-      "mean_margin": 3.073,
-      "warnings": 4,
+      "mean_margin": 2.923,
+      "warnings": 12,
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 22.44
+      "check_ms": 30.01
     },
     {
       "group": "meadow",
@@ -278,7 +278,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.0
+      "check_ms": 2.6
     },
     {
       "group": "meadow",
@@ -298,7 +298,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.62
+      "check_ms": 0.81
     },
     {
       "group": "meadow",
@@ -318,7 +318,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.56
+      "check_ms": 2.24
     },
     {
       "group": "meadow",
@@ -338,7 +338,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.05
+      "check_ms": 1.43
     },
     {
       "group": "meadow",
@@ -358,7 +358,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.2
+      "check_ms": 0.28
     },
     {
       "group": "meadow",
@@ -378,7 +378,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 17.1
+      "check_ms": 30.43
     },
     {
       "group": "meadow",
@@ -398,7 +398,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": 137 floating pixel(s): [(16, 6), (17, 5), (17, 6), (18, 4), (18, 5), (18, 6), (19, 3), (19, 4)]",
-      "check_ms": 0.29
+      "check_ms": 0.39
     },
     {
       "group": "meadow",
@@ -418,7 +418,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.71
+      "check_ms": 0.97
     },
     {
       "group": "meadow",
@@ -438,7 +438,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 19.43
+      "check_ms": 38.79
     },
     {
       "group": "meadow",
@@ -458,7 +458,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": 137 floating pixel(s): [(16, 6), (17, 5), (17, 6), (18, 4), (18, 5), (18, 6), (19, 3), (19, 4)]",
-      "check_ms": 0.3
+      "check_ms": 0.75
     },
     {
       "group": "meadow",
@@ -478,7 +478,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 3.3
+      "check_ms": 5.91
     },
     {
       "group": "meadow",
@@ -498,7 +498,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.99
+      "check_ms": 0.82
     },
     {
       "group": "meadow",
@@ -518,7 +518,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.89
+      "check_ms": 0.75
     },
     {
       "group": "meadow",
@@ -538,7 +538,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.63
+      "check_ms": 0.67
     },
     {
       "group": "meadow",
@@ -558,7 +558,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.58
+      "check_ms": 0.79
     },
     {
       "group": "game",
@@ -578,7 +578,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": 5998 floating pixel(s): [(0, 28), (0, 29), (0, 30), (0, 31), (0, 32), (0, 33), (0, 34), (0, 35)]",
-      "check_ms": 6.16
+      "check_ms": 9.04
     },
     {
       "group": "game",
@@ -598,7 +598,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": 11855 floating pixel(s): [(0, 14), (0, 15), (0, 16), (0, 17), (0, 18), (0, 19), (0, 20), (0, 21)]",
-      "check_ms": 13.94
+      "check_ms": 28.35
     },
     {
       "group": "game",
@@ -618,7 +618,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 57.08
+      "check_ms": 90.29
     },
     {
       "group": "game",
@@ -638,7 +638,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 25.05
+      "check_ms": 52.33
     },
     {
       "group": "game",
@@ -658,7 +658,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.22
+      "check_ms": 0.24
     },
     {
       "group": "game",
@@ -678,7 +678,7 @@
       "failures": 0,
       "struct": 3,
       "struct_msg": ": 30 floating pixel(s): [(0, 4), (1, 3), (1, 4), (1, 5), (2, 2), (2, 3), (2, 4), (2, 5)]",
-      "check_ms": 0.23
+      "check_ms": 0.29
     },
     {
       "group": "game",
@@ -698,7 +698,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.09
+      "check_ms": 0.13
     },
     {
       "group": "game",
@@ -718,7 +718,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.1
+      "check_ms": 0.14
     },
     {
       "group": "game",
@@ -738,7 +738,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": 19 floating pixel(s): [(0, 3), (0, 4), (1, 2), (1, 5), (2, 1), (2, 6), (4, 7), (5, 6)]",
-      "check_ms": 0.16
+      "check_ms": 0.23
     },
     {
       "group": "game",
@@ -758,7 +758,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": fully transparent",
-      "check_ms": 0.34
+      "check_ms": 0.41
     },
     {
       "group": "game",
@@ -778,7 +778,7 @@
       "failures": 0,
       "struct": 2,
       "struct_msg": ": 2 floating pixel(s): [(2, 5), (8, 5)]",
-      "check_ms": 0.19
+      "check_ms": 0.24
     },
     {
       "group": "game",
@@ -798,7 +798,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.14
+      "check_ms": 0.17
     },
     {
       "group": "game",
@@ -818,7 +818,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.13
+      "check_ms": 0.17
     },
     {
       "group": "game",
@@ -838,7 +838,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.11
+      "check_ms": 0.14
     },
     {
       "group": "game",
@@ -858,7 +858,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.67
+      "check_ms": 2.24
     },
     {
       "group": "game",
@@ -878,7 +878,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.97
+      "check_ms": 5.71
     },
     {
       "group": "game",
@@ -898,7 +898,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.12
+      "check_ms": 3.94
     },
     {
       "group": "game",
@@ -918,7 +918,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 3.46
+      "check_ms": 6.82
     },
     {
       "group": "game",
@@ -938,7 +938,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.18
+      "check_ms": 3.32
     },
     {
       "group": "game",
@@ -958,16 +958,16 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.24
+      "check_ms": 3.76
     }
   ],
   "skipped": [],
   "totals": {
     "assets": 48,
     "cells": 161830,
-    "pairs": 921,
-    "check_ms": 206.2,
+    "pairs": 957,
+    "check_ms": 348.2,
     "failures": 0,
-    "warnings": 59
+    "warnings": 67
   }
 }
