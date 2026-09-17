@@ -421,6 +421,7 @@ that cannot.
 | `gamepalette.py` | the game's own locked palette and canvas spec |
 | `scene.py` + `scenes/*.json` | spec-driven scene compositor |
 | `plan_scene.py` | solves object placement against the composition rules |
+| `pixelate.py` | turns any source image into a palette-clean sprite, plus procedural motion |
 | `evaluate.py` | measures cost, slack and coverage; not a gate |
 | `render_sprite.py` `walk_cycle.py` | the 16×32 farmer and his walk |
 | `sky.py` `ground.py` `props.py` `dog.py` | meadow layers |

@@ -156,6 +156,50 @@ Every agent report here ends with the palette pairs it had to design around. Tha
 list is how the thresholds got recalibrated. A silent workaround is a lost
 measurement.
 
+## Starting from an image instead of from nothing
+
+If you have a reference — your own art, a 3D render, a photo, or a CC0 image — do
+not hand-author the grid. Run it through `pixelate.py`:
+
+```bash
+python pixelate.py hero.png --size 56x72 --palette game --out assets/hero --animate
+python pixelate.py hero.png --size 56x72 --palette game --out assets/hero \
+    --module hero.py          # also emit a pipeline module
+```
+
+It does the four things that are deterministic and easy to get wrong by hand:
+
+1. **Area-average downscale** (`BOX`, not `LANCZOS`). For pixel art you want each
+   output pixel to be the *mean* of the block it covers; that is what makes the
+   quantiser's job well-posed.
+2. **CIELAB quantisation** to the locked palette. Nearest in RGB picks
+   perceptually wrong colours constantly; nearest in Lab is the same amount of
+   code and gets skin, foliage and metal right.
+3. **A separation repair pass.** Naive quantisation is locally correct and
+   globally wrong: it reliably produces two near-identical palette entries side by
+   side on a soft gradient. The pass walks the failing pairs and moves the rarer
+   colour to the nearest entry that resolves the pair without starting a new
+   failure, and reports how many substitutions it made.
+4. **A silhouette outline**, which is what stops a downscaled photo from looking
+   like a blurred thumbnail.
+
+Then it runs the repo's own assertions on the result.
+
+**`--animate` is procedural and honest about it:** a one-pixel bob, nothing more.
+From a single static image you cannot have a walk cycle, because a walk cycle
+needs poses that are not in the picture. Anything claiming otherwise is either
+morphing (which reads as melting) or a generation model.
+
+**Licensing.** Only feed it images you have the right to derive from — your own,
+or CC0 / public domain. Pixelating someone's art does not make it yours, and this
+repo is public. [madjin/awesome-cc0](https://github.com/madjin/awesome-cc0) is a
+good starting list.
+
+**And the limit that matters:** `pixelate.py` has no eyesight, and neither does
+anything else here. It will faithfully turn a bad source, a bad crop, or a subject
+that is unrecognisable at 56×72 into a verified, palette-clean, structurally
+perfect piece of bad art. **The source has to be chosen by someone who can see it.**
+
 ## Handing a layer to the game
 
 The game loads one generated file, `game/assets.js`, containing the packed sheet
