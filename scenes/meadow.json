@@ -1,44 +1,209 @@
 {
   "name": "meadow",
-  "description": "A meadow at midday: cottage, tree, fence, a farmer walking and a dog trotting.",
-  "size": [160, 96],
+  "description": "A meadow at midday: cottage, well, cart, scarecrow, farmyard clutter, a farmer walking, a dog and a hen.",
+  "size": [
+    320,
+    96
+  ],
   "ground_line": 79,
   "loop_frames": 16,
   "frame_ms": 120,
-
   "_comment": "Layers are drawn in array order, so later entries occlude earlier ones. Each layer names a module and the attribute in it holding either one grid or a list of frames. Use \"y\" for a fixed row, or \"base\" to pin the grid's lowest opaque row to a scene row (which is how things stand on the ground).",
-
   "composition": {
-    "_comment": "Objects may share a colour, or stand close together, but not both. 'K' is excluded because it is the universal outline every object uses. 'depth_close' is how many base rows apart two objects must be before overlapping in x stops mattering: a foreground barrel at base 90 and a background fence at base 76 read as two separate things even when they overlap in x, because the depth cue separates them. Raising it makes the layout stricter.",
+    "_comment": "Two objects may not OVERLAP in x while sharing a dominant colour -- that is what makes them read as one object. 'dominant_top' is how many of each object's most-used colours (outline excluded) count as its identity; comparing full colour sets was useless, because any two wooden props share {T, t} by construction and the well and the cottage 'shared' eight colours purely by both being built things. 'min_gap' only produces an informational note.",
+    "overlap_gap": 2,
+    "dominant_top": 3,
     "min_gap": 8,
-    "depth_close": 8,
-    "shared_colours": 2,
-    "ignore_colours": ["K"]
+    "ignore_colours": [
+      "K"
+    ]
   },
-
   "layers": [
-    {"name": "backdrop", "module": "sky", "attr": "BACKDROP", "x": 0, "y": 0},
-
-    {"name": "clouds", "module": "sky", "attr": "CLOUD_STRIP", "y": 10,
-     "tile_horizontal": true, "scroll_px_per_frame": 4},
-
-    {"name": "ground", "module": "ground", "attr": "GROUND", "x": 0, "y": 56,
-     "tile_horizontal": true},
-
-    {"name": "tree", "module": "props", "attr": "TREE", "x": 0, "base": 85},
-    {"name": "fence", "module": "props", "attr": "FENCE", "x": 40, "base": 76},
-    {"name": "rock", "module": "props", "attr": "ROCK", "x": 30, "base": 90},
-    {"name": "house", "module": "props", "attr": "HOUSE", "x": 112, "base": 78},
-
-    {"name": "farmer", "module": "walk_cycle", "attr": "FRAMES", "x": 48, "base": 79,
-     "animated": true, "phase": 0},
-    {"name": "dog", "module": "dog", "attr": "DOG_FRAMES", "x": 76, "base": 79,
-     "animated": true, "phase": 2}
+    {
+      "_comment": "The canvas is 320 wide and the sky is a 160-wide tile, so it lays down exactly twice with an exact seam. 160 was too tight for this many objects: half the farmyard props are wood, and the overlap rule pushes same-coloured objects apart, so the log pile had nowhere to stand.",
+      "name": "backdrop",
+      "module": "sky",
+      "attr": "BACKDROP",
+      "x": 0,
+      "y": 0,
+      "tile_horizontal": true
+    },
+    {
+      "name": "clouds",
+      "module": "sky",
+      "attr": "CLOUD_STRIP",
+      "y": 10,
+      "tile_horizontal": true,
+      "scroll_px_per_frame": 4
+    },
+    {
+      "name": "ground",
+      "module": "ground",
+      "attr": "GROUND",
+      "x": 0,
+      "y": 56,
+      "tile_horizontal": true
+    },
+    {
+      "_comment": "Objects are listed FAR to NEAR. Base row is the depth: a smaller base row is further from the camera, so it is drawn first and gets occluded by what follows. Keep this list sorted by base row or the occlusion inverts.",
+      "name": "haystack",
+      "module": "yardprops",
+      "attr": "HAYSTACK",
+      "x": 268,
+      "base": 74
+    },
+    {
+      "name": "fence",
+      "module": "props",
+      "attr": "FENCE",
+      "x": 60,
+      "base": 76
+    },
+    {
+      "name": "scarecrow",
+      "module": "yardprops",
+      "attr": "SCARECROW",
+      "x": 18,
+      "base": 76
+    },
+    {
+      "name": "house",
+      "module": "props",
+      "attr": "HOUSE",
+      "x": 208,
+      "base": 78
+    },
+    {
+      "_comment": "the actors stand on the ground line; they are drawn before the nearer props so a foreground barrel can pass in front of them",
+      "name": "farmer",
+      "module": "walk_cycle",
+      "attr": "FRAMES",
+      "x": 100,
+      "base": 79,
+      "animated": true,
+      "phase": 0,
+      "actor": true
+    },
+    {
+      "name": "dog",
+      "module": "dog",
+      "attr": "DOG_FRAMES",
+      "x": 132,
+      "base": 79,
+      "animated": true,
+      "phase": 2,
+      "actor": true
+    },
+    {
+      "name": "chicken",
+      "module": "foliage",
+      "attr": "CHICKEN",
+      "x": 152,
+      "base": 80,
+      "animated": true,
+      "phase": 0
+    },
+    {
+      "name": "well",
+      "module": "yardprops",
+      "attr": "WELL",
+      "x": 164,
+      "base": 83
+    },
+    {
+      "name": "wagon",
+      "module": "yardprops",
+      "attr": "WAGON",
+      "x": 8,
+      "base": 84
+    },
+    {
+      "name": "tree",
+      "module": "props",
+      "attr": "TREE",
+      "x": 0,
+      "base": 86
+    },
+    {
+      "name": "bush",
+      "module": "foliage",
+      "attr": "BUSH",
+      "x": 40,
+      "base": 86
+    },
+    {
+      "name": "signpost",
+      "module": "farmprops",
+      "attr": "SIGNPOST",
+      "x": 94,
+      "base": 88
+    },
+    {
+      "name": "logpile",
+      "module": "farmprops",
+      "attr": "LOGPILE",
+      "x": 186,
+      "base": 88
+    },
+    {
+      "name": "stump",
+      "module": "farmprops",
+      "attr": "STUMP",
+      "x": 296,
+      "base": 88
+    },
+    {
+      "name": "flowers",
+      "module": "foliage",
+      "attr": "FLOWERPATCH",
+      "x": 26,
+      "base": 90
+    },
+    {
+      "name": "rock",
+      "module": "props",
+      "attr": "ROCK",
+      "x": 46,
+      "base": 91
+    },
+    {
+      "name": "mushrooms",
+      "module": "foliage",
+      "attr": "MUSHROOMS",
+      "x": 62,
+      "base": 90
+    },
+    {
+      "name": "barrel",
+      "module": "farmprops",
+      "attr": "BARREL",
+      "x": 116,
+      "base": 90
+    },
+    {
+      "name": "milkchurn",
+      "module": "farmprops",
+      "attr": "MILKCHURN",
+      "x": 128,
+      "base": 90
+    },
+    {
+      "name": "crate",
+      "module": "farmprops",
+      "attr": "CRATE",
+      "x": 248,
+      "base": 91
+    }
   ],
-
   "effects": [
-    {"_comment": "house sits at x=112, base row 78; HOUSE is 34 rows so its grid row 0 lands on scene row 45. props.py documents the flue opening at sprite cols 33-37 / row 3, so smoke belongs at scene x 145-149, row 48.",
-     "name": "chimney_smoke", "type": "smoke", "x": 147, "top": 48,
-     "puffs": 4, "fade_after": 13}
+    {
+      "_comment": "house sits at x=208, base row 78; HOUSE is 34 rows so its grid row 0 lands on scene row 45. props.py documents the flue opening at sprite cols 33-37 / row 3, so smoke belongs at scene x 241-245, row 48.",
+      "name": "chimney_smoke",
+      "type": "smoke",
+      "x": 243,
+      "top": 48,
+      "puffs": 4,
+      "fade_after": 13
+    }
   ]
 }

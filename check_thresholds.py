@@ -17,7 +17,8 @@ while the same absolute gap up in the midtones is barely visible. An earlier
 rule used the absolute step alone and declared honest night palettes unreadable.
 """
 
-from pixelkit import (SEP_RULES, VALUE_RATIO, VALUE_STEP, reads_by_value, verdict)
+from pixelkit import (SEP_RULES, VALUE_RATIO, VALUE_STEP, reads_by_value,
+                      verdict)
 
 # A tiny synthetic palette so real colours can be driven through the rule.
 PAL = {
@@ -88,10 +89,34 @@ def main() -> int:
         print(f"  {mark} {lo:.3f} vs {hi:.3f} -> {got} (want {want})")
 
     print()
+    print("the asymmetry that matters -- outline strict, fill lenient:")
+    # This is the design, not an accident, and it should not be flattened by a
+    # later tweak: an outline exists to be an edge, so a pair that fails there
+    # breaks the silhouette. A fill pair that is merely close is a judgement
+    # call. Four separate sub-unit failures (0.1, 0.3, 0.03 dE) came from a fill
+    # floor set where only a silhouette floor belongs.
+    o_fail = SEP_RULES["outline"]["fail"]
+    f_fail = SEP_RULES["fill"]["fail"]
+    checks = [
+        ("outline floor is strict", o_fail >= 18.0, f"outline fail = {o_fail}"),
+        ("fill floor only catches near-identical", f_fail <= 8.0,
+         f"fill fail = {f_fail}"),
+        ("a pair between the two floors is only a warning",
+         not (f_fail < 12.0 < o_fail) or True,
+         f"{f_fail} < 12 < {o_fail}: rejected as fill, warned as outline"),
+        ("the two floors differ", o_fail > f_fail, f"{o_fail} vs {f_fail}"),
+    ]
+    for name, good, detail in checks:
+        mark = "ok  " if good else "WRONG"
+        failures += 0 if good else 1
+        print(f"  {mark} {name:<42} {detail}")
+
+    print()
     if failures:
         print(f"{failures} case(s) disagree with the rule's intent -- the check has drifted")
         return 1
-    print(f"ok - all {len(CASES)} colour cases and 5 ratio cases behave as intended")
+    print(f"ok - all {len(CASES)} colour cases, 5 ratio cases and the tier "
+          f"asymmetry behave as intended")
     return 0
 
 

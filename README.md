@@ -74,14 +74,18 @@ tellable apart, and only two:
    **ratio** of `1.7`. The ratio matters because perception follows Weber's law:
    in a night palette, 0.05 against 0.16 is a three-fold brightness difference
    and reads instantly, while the same absolute gap higher up is barely visible.
-2. **a chroma difference** of ΔE 12 (20 for anything touching the outline — an
-   outline's whole job is to be an edge).
+2. **a chroma difference**, against a floor that depends on the pair's **role**:
+
+   | role | hard failure below | warning below | why |
+   |---|---|---|---|
+   | outline vs fill | **ΔE 24** | ΔE 30 | an outline exists to be an edge; a dissolved silhouette is unrecoverable |
+   | anything else | **ΔE 6** | ΔE 22 | everything above the "literally the same colour" line is a judgement call |
 
 A pair that fails neither is a **hard failure**. A pair that is close but
 visible is a **warning**, printed for the author to judge.
 
-That split is the most important design decision in the repo, and it was learned
-the hard way — see below.
+That asymmetry is the most important decision in the repo, and it was learned
+**four separate times** — see below.
 
 ## Animation: proven, not tuned
 
@@ -133,16 +137,20 @@ The sky agent's own working notes: *"`a`-`C` 10.9 and `C`-`A` 17.3 are under 32,
 so the shirt blues cannot be used as intermediate ramp steps; the sky is `a`/`A`
 dither only."* That is a threshold dictating composition for no visible reason.
 
-**Evidence 2 — three spurious failures, each by a fraction of a unit.**
+**Evidence 2 — four spurious failures, each by a fraction of a unit.**
 
 ```
 dog's pale paw vs the dirt path      dL 0.26, ΔE 24.9   rejected by 0.1
 sky gradient's own two steps         ΔE 19.7            rejected by 0.3
+the well's plaster vs the dirt       ΔE 12.0            rejected by 0.03
 near-black vs black                  ΔE 3.6             correctly rejected
 ```
 
-A sky gradient's adjacent bands are *supposed* to be close. That is what a
-gradient is. The rule was treating a smooth ramp as a defect.
+A sky gradient's adjacent bands are *supposed* to be close; that is what a
+gradient is. And 0.03 of a dE unit is not a distinction any display can render.
+Three times the threshold was wrong and the art was fine — which is what finally
+moved the fill floor down to the "genuinely identical" line and left everything
+else as a warning.
 
 **Evidence 3 — and this one is on me.** The repo's own headline war story used
 to be that the check "caught a killer": outline `K` against trouser shadow `p`

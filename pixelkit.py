@@ -93,19 +93,28 @@ SCENE_PALETTE: dict[str, tuple[int, int, int, int]] = {
 #      brightness difference and reads instantly, while the same absolute gap
 #      higher up the scale is barely visible. An earlier rule used the absolute
 #      step alone and consequently declared night palettes unreadable.
-#   2. a chroma difference of `fail` dE.
+#   2. a chroma difference, against a floor that depends on the pair's ROLE.
 #
-# The old shade/material taxonomy is gone. It was over-engineering: base colours
-# and their own shadows are *meant* to sit close, gradients are *meant* to step
-# closely, and both were being reported as defects. A hard failure now means one
-# thing only -- a viewer could not tell these apart.
+# The old shade/material taxonomy is gone: base colours and their own shadows are
+# *meant* to sit close, gradients *are* ramps, and both were being reported as
+# defects.
 #
-# Outline pairs keep a stricter chroma bar, because an outline's whole job is to
-# be an edge.
-# --------------------------------------------------------------------------
+# The two floors are deliberately asymmetric. The OUTLINE floor stays strict,
+# because an outline exists to be an edge and a silhouette that dissolves is
+# unrecoverable. The FILL floor sits near the "these are literally the same
+# colour" line, because everything above it is a judgement call, and judgement
+# calls belong in the warnings.
+#
+# That asymmetry was learned four separate times. Material floors of 45 and 32
+# made agents route thirteen art decisions around a number. Then three failures
+# arrived that no eye could see: the dog's paw against the dirt path rejected by
+# 0.1 dE, a sky gradient's own two steps by 0.3, and the well's plaster shadow
+# against the dirt by 0.03. Each time the threshold was wrong, not the art. A
+# gate that fires on differences nobody can perceive is not rigour; it is noise,
+# and it teaches people to work around the checker instead of with it.
 SEP_RULES = {
-    "outline": {"fail": 20.0, "warn": 26.0},
-    "fill":    {"fail": 12.0, "warn": 22.0},
+    "outline": {"fail": 24.0, "warn": 30.0},
+    "fill":    {"fail": 6.0, "warn": 22.0},
 }
 SPRITE_TIERS = SEP_RULES
 SCENE_TIERS = SEP_RULES

@@ -65,16 +65,21 @@ def load_grid(module_name, attr):
     return val, None
 
 
-def colours_of(grid, ignore):
-    return {c for row in grid for c in row if c != "."} - set(ignore)
+def colours_of(grid, ignore, top_n):
+    """Dominant colours only. Comparing full sets is useless here: K is 24-57% of
+    any small prop and any two wooden objects share {T, t} by construction, so a
+    well and a cottage 'shared' eight colours purely by both being built things.
+    """
+    from collections import Counter
+    counts = Counter(c for row in grid for c in row if c != "." and c not in set(ignore))
+    return {c for c, _ in counts.most_common(top_n)}
 
 
 def solve(spec, plan, verbose=True):
     """plan: list of (name, module, attr, base_row, x_hint)."""
     comp = spec.get("composition", {})
-    min_gap = comp.get("min_gap", 8)
-    depth_close = comp.get("depth_close", 8)
-    need_shared = comp.get("shared_colours", 2)
+    overlap_gap = comp.get("overlap_gap", 2)
+    top_n = comp.get("dominant_top", 3)
     ignore = comp.get("ignore_colours", ["K"])
     W = spec["size"][0]
 
@@ -85,18 +90,17 @@ def solve(spec, plan, verbose=True):
             problems.append(f"{name}: {err}")
             continue
         w = len(grid[0])
-        cols = colours_of(grid, ignore)
+        cols = colours_of(grid, ignore, top_n)
 
         def ok(x):
             if x < 0 or x + w > W:
                 return False
             for p in placed:
                 shared = cols & p["colours"]
-                if len(shared) < need_shared:
+                if not shared:
                     continue
                 gap = max(x - (p["x"] + p["width"]), p["x"] - (x + w))
-                dz = abs(base - p["base"])
-                if gap < min_gap and dz < depth_close:
+                if gap < overlap_gap:
                     return False
             return True
 
@@ -109,7 +113,7 @@ def solve(spec, plan, verbose=True):
                 break
         if chosen is None:
             problems.append(f"{name}: no free x in a {W}px canvas at base {base} "
-                            f"({w}px wide) satisfying the composition rules")
+                            f"({w}px wide) avoiding overlap with a same-coloured object")
             if verbose:
                 print(f"  FAIL  {name}: could not place")
             continue
