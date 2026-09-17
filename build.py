@@ -32,6 +32,14 @@ RENDER_STEPS = [
 # run alphabetically.
 CHECK_ORDER = ["check_sprite.py", "check_scene.py"]
 
+# Reporting steps run last and are allowed to return non-zero: they measure, they
+# do not gate. evaluate.py exits non-zero when an asset is unclean, which the
+# check scripts have already decided on -- failing the build again here would
+# just double-report.
+REPORT_STEPS = [
+    ("evaluate", ["evaluate.py", "--markdown", "--json"]),
+]
+
 
 def run(script: Path) -> int:
     return subprocess.call([sys.executable, str(script)], cwd=HERE)
@@ -64,7 +72,12 @@ def main() -> int:
     if failed:
         print(f"FAILED       : {', '.join(failed)}")
         return 1
-    print("All steps passed.")
+
+    for label, argv in REPORT_STEPS:
+        print(f"\n=== report: {label} " + "=" * max(0, 46 - len(label)))
+        subprocess.call([sys.executable, *argv], cwd=HERE)
+
+    print("\nAll steps passed.")
     return 0
 
 

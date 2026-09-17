@@ -37,9 +37,9 @@ Separation notes (``python check_foliage.py`` keeps these honest):
     its stem, so this pair is left as a WARNING rather than being fenced off
     with an invented outline colour: a shade that close to its own base is what
     a shade is for.
-  * BUSH never mixes F/f against the grass g: the stems are t (wood), which is
-    dE 42.2 from F and 27.8 from f, both clear -- an earlier draft had the stems
-    as g and the bush grew a second, invisible silhouette.
+  * BUSH's stems are t (wood, dE 42.2 from F and 27.8 from f) and not g: g is
+    the scene's grass *shadow*, so a g stem would tie the base of the bush to
+    the ground tone it stands on instead of reading as wood standing in it.
   * CHICKEN's comb/wattle o against the outline K is the tightest pair on the
     bird at dE 31.3, which clears the 20 outline floor.  Y next to o (80.0) and
     U next to u (20.8, the belly under the breast) are the same story: tight but
@@ -94,7 +94,7 @@ BUSH_STEM_COLS = (6, 9, 12)       # the t columns the stems rise through
 # the two flower heads sit at different heights and different columns, the
 # tufts run to four different heights, and the base row is two 2px notches
 # short of solid.  Those notches are what keep it from reading as a lawn
-# edge -- and rows 6 bridges them, which is also what keeps the whole patch a
+# edge -- and row 6 bridges them, which is also what keeps the whole patch a
 # single connected body.  check_foliage.py asserts that connectivity.
 #
 #   rows 0-2  Y head (11px diamond, cols 4-8) on the E stem in col 6
@@ -197,8 +197,8 @@ HEAD_H = len(HEAD)     # 4
 
 # Whole-row offsets of the head block per frame: stand, dip 1, beak down 3,
 # rise to 2.  Four DIFFERENT poses -- offsets 0,2,4,2 would make frames 1 and 3
-# the same picture -- with steps of 1,2,1,2 rows, so the pixel churn per step
-# stays within a factor of 1.7 of the smallest step.
+# the same picture -- with steps of 1,2,1,2 rows, which as drawn churn 16, 23,
+# 16 and 23 pixels, so no step is more than 1.5x any other.
 CHICKEN_HEAD_ROWS = (0, 1, 3, 2)
 
 # The neck: col-7 U pixels between the head and the body's shoulder.  Frame 2
