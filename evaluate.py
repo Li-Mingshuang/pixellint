@@ -55,47 +55,87 @@ def _import(name, *paths):
     return importlib.import_module(name)
 
 
+# Modules that may export art. Anything grid-shaped found in them is measured, so
+# adding an art module does not require editing this file -- the same lesson as
+# build.py's recursive check discovery: a hand-maintained list silently omits the
+# newest thing, and the omission looks like a clean report.
+ART_MODULES = [
+    ("meadow", "render_sprite"), ("meadow", "walk_cycle"), ("meadow", "ground"),
+    ("meadow", "props"), ("meadow", "sky"), ("meadow", "dog"),
+    ("meadow", "farmprops"), ("meadow", "foliage"), ("meadow", "yardprops"),
+    ("game", "background"), ("game", "player"), ("game", "zombie"),
+    ("game", "effects"),
+]
+
+
+# Composition blocks, not deliverables. walk_cycle.FRAMES is ASSEMBLED from these,
+# so measuring both would double-count the same authored cells. This list is a
+# wart: the honest fix is for each module to declare its exports (an `__all__` or
+# a SHIPPED tuple) and for this to read that instead. It is listed here, visibly,
+# rather than hidden by a naming convention.
+INTERNAL_BLOCKS = {
+    "HEAD", "HEAD_DOWN", "TORSO", "TORSO_LEFT_ARM_FWD", "TORSO_RIGHT_ARM_FWD",
+    "LEGS_PLANTED", "LEGS_LIFT_LEFT", "LEGS_LIFT_RIGHT",
+}
+
+
+def _is_grid(v):
+    """list[str] of equal length, drawn from palette-ish characters."""
+    return (isinstance(v, list) and 2 <= len(v)
+            and all(isinstance(r, str) and len(r) == len(v[0]) for r in v)
+            and all(c.isalnum() or c == "." for r in v for c in r))
+
+
+def _is_clip(v):
+    return (isinstance(v, list) and v and all(_is_grid(f) for f in v))
+
+
 def discover():
-    """Every (group, module, name, [frames]) the repo ships."""
-    out = []
+    """Every (group, module, name, [frames]) the repo ships, found by shape."""
     sys.path.insert(0, str(HERE))
     sys.path.insert(0, str(HERE / "game"))
+    out, skipped = [], []
 
-    def add(group, module_name, name, value):
+    for group, module_name in ART_MODULES:
         try:
             mod = importlib.import_module(module_name)
-        except Exception:
-            return
-        if isinstance(value, str):
-            value = getattr(mod, value, None)
-        if value is None:
-            return
-        if isinstance(value, list) and value and isinstance(value[0], str):
-            out.append((group, module_name, name, [value]))          # one grid
-        elif isinstance(value, list) and value and isinstance(value[0], list) \
-                and value[0] and isinstance(value[0][0], str):
-            out.append((group, module_name, name, list(value)))      # a clip
-        elif isinstance(value, dict):
-            for k, v in value.items():
-                add(group, module_name, k, v)
+        except Exception as exc:
+            skipped.append((group, module_name, f"{type(exc).__name__}: {exc}"))
+            continue
 
-    # --- meadow -----------------------------------------------------------
-    for mod, name in [("render_sprite", "SPRITE"), ("ground", "GROUND"),
-                      ("props", "TREE"), ("props", "HOUSE"),
-                      ("props", "FENCE"), ("props", "ROCK"),
-                      ("sky", "BACKDROP"), ("sky", "CLOUD_STRIP")]:
-        add("meadow", mod, name, name)
-    add("meadow", "walk_cycle", "FRAMES", "FRAMES")
-    add("meadow", "dog", "DOG_FRAMES", "DOG_FRAMES")
+        def add(name, value, top=True):
+            if name in INTERNAL_BLOCKS:
+                return
+            if _is_clip(value):
+                out.append((group, module_name, name, list(value)))
+            elif _is_grid(value):
+                out.append((group, module_name, name, [value]))
+            elif isinstance(value, dict):
+                for k, v in value.items():
+                    # a container is a bag of deliverables, so its keys are the
+                    # names -- "PLAYER.walk" not "PLAYER.PLAYER.walk"
+                    add(str(k), v, top=False)
 
-    # --- game -------------------------------------------------------------
-    for name in ("SKY", "FAR", "MID", "STREET"):
-        add("game", "background", name, name)
-    add("game", "player", "PLAYER", "PLAYER")
-    add("game", "zombie", "ZOMBIE", "ZOMBIE")
-    add("game", "effects", "FX", "FX")
+        for attr in dir(mod):
+            if attr.startswith("_"):
+                continue
+            value = getattr(mod, attr)
+            if callable(value):
+                continue
+            add(attr, value)
 
-    return out
+    # de-duplicate by content: a module often aliases one grid under two names,
+    # and TREE may appear both bare and inside PROPS
+    seen, unique = set(), []
+    for group, module, name, frames in out:
+        key = (group, module, tuple(f[0] + "|" + str(len(f)) + "|" + f[-1]
+                                    for f in frames), len(frames))
+        if key in seen:
+            continue
+        seen.add(key)
+        # prefer the shortest name (the bare export over the container path)
+        unique.append((group, module, name, frames))
+    return unique, skipped
 
 
 def tier_of(cells: int) -> str:
@@ -157,12 +197,12 @@ def main() -> int:
     ap.add_argument("--markdown", action="store_true")
     args = ap.parse_args()
 
-    assets = discover()
+    assets, load_skipped = discover()
     if not assets:
         print("no assets discovered")
         return 1
 
-    rows, skipped = [], []
+    rows, skipped = [], list(load_skipped)
     for group, mod, name, frames in assets:
         palette = GAME_PALETTE if group == "game" else SCENE_PALETTE
         try:

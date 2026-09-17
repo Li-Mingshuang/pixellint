@@ -309,6 +309,27 @@ proxy against human ratings**: score assets by hand, then check whether the ΔE
 margin actually correlates. Until that is done, the margin proves the art is
 close to the line and nothing more.
 
+## Placement is solved, not nudged
+
+Hand-placing twenty objects and re-running the check after every nudge is tedium,
+and tedium is where a layout quietly ends up violating a rule nobody re-checked.
+`plan_scene.py` splits the job the way it actually divides:
+
+- **which depth band an object stands on** is an art decision — it sets occlusion
+  order and the reading of near and far. A human picks it.
+- **the x position within a band** is constraint satisfaction. The solver does it,
+  greedily, against the same rule `check_scene.py` enforces, searching outward
+  from an authored hint so the layout stays close to the intent.
+
+If a band is too crowded it **refuses to place the object and says so**, rather
+than dropping it or overlapping anyway. A spec with unresolved objects is worse
+than the one already on disk, so it will not write one.
+
+```bash
+python plan_scene.py --dry-run    # show the plan
+python plan_scene.py              # rewrite the spec
+```
+
 ## Playability is asserted too
 
 A game can pass every art check and still be unplayable. `game/smoke_test.mjs`
@@ -379,6 +400,8 @@ that cannot.
 | `pixelkit.py` | shared palettes, the separation rule, all assertion helpers |
 | `gamepalette.py` | the game's own locked palette and canvas spec |
 | `scene.py` + `scenes/*.json` | spec-driven scene compositor |
+| `plan_scene.py` | solves object placement against the composition rules |
+| `evaluate.py` | measures cost, slack and coverage; not a gate |
 | `render_sprite.py` `walk_cycle.py` | the 16×32 farmer and his walk |
 | `sky.py` `ground.py` `props.py` `dog.py` | meadow layers |
 | `game/player.py` `game/zombie.py` `game/background.py` `game/effects.py` | game art |
