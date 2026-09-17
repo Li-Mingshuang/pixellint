@@ -58,6 +58,10 @@ if str(_ROOT) not in sys.path:
 from gamepalette import GAME_PALETTE          # noqa: E402
 from pixelkit import build, preview           # noqa: E402
 
+# What this module delivers. See docs/authoring.md.
+SHIPPED = ('ZOMBIE',)
+
+
 W, H = 22, 32
 GROUND_ROW = 31          # the row a planted sole lands on, in walk and attack
 FRAME_MS = 110           # one frame of the death clip

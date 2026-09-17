@@ -51,6 +51,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from gamepalette import GAME_PALETTE  # noqa: E402
 from pixelkit import build, preview  # noqa: E402
 
+# What this module delivers. See docs/authoring.md.
+SHIPPED = ('PLAYER',)
+
+
 # --------------------------------------------------------------------------
 # Canvas
 # --------------------------------------------------------------------------

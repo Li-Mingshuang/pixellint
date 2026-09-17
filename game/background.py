@@ -1,3 +1,9 @@
+
+# What this module delivers. The rest of what it defines is either a
+# composition block or a lookup table, and measuring those double-counts or
+# misfires -- see docs/authoring.md.
+SHIPPED = ('SKY', 'FAR', 'MID', 'STREET',)
+
 """Parallax background: four 320-wide layers, frozen as literal grids.
 
 One character is one pixel and one index into `gamepalette.GAME_PALETTE`.  The

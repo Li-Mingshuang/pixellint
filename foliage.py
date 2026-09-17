@@ -55,6 +55,12 @@ from PIL import Image
 
 from pixelkit import SCENE_PALETTE, build, check_grid, preview
 
+# What this module delivers. The rest of what it defines is either a
+# composition block or a lookup table, and measuring those double-counts or
+# misfires -- see docs/authoring.md.
+SHIPPED = ('BUSH', 'FLOWERPATCH', 'MUSHROOMS', 'CHICKEN',)
+
+
 OUT_DIR = Path(__file__).resolve().parent / "assets"
 
 # --------------------------------------------------------------------------

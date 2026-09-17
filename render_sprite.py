@@ -9,6 +9,10 @@ from pathlib import Path
 
 from PIL import Image
 
+# What this module delivers. See docs/authoring.md.
+SHIPPED = ('SPRITE',)
+
+
 OUT_DIR = Path(__file__).resolve().parent / "assets"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 

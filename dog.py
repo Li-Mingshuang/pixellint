@@ -49,6 +49,10 @@ from PIL import Image
 
 from pixelkit import SCENE_PALETTE, build, preview
 
+# What this module delivers. See docs/authoring.md.
+SHIPPED = ('DOG_FRAMES',)
+
+
 OUT_DIR = Path(__file__).resolve().parent / "assets"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 

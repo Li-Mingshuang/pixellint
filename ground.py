@@ -1,3 +1,7 @@
+
+# What this module delivers. See docs/authoring.md.
+SHIPPED = ('GROUND',)
+
 """The ground layer: 160x40 of walkable dirt path through a grass field.
 
 Composited at scene rows 56..95, so GROUND row 0 is scene row 56 and GROUND

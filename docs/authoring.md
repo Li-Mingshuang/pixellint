@@ -200,6 +200,36 @@ anything else here. It will faithfully turn a bad source, a bad crop, or a subje
 that is unrecognisable at 56×72 into a verified, palette-clean, structurally
 perfect piece of bad art. **The source has to be chosen by someone who can see it.**
 
+## Measuring why something reads badly
+
+`legibility.py` computes proxies for the failure modes that are measurable, as
+distinct from taste, which is not:
+
+| metric | what it catches |
+|---|---|
+| `outline` | share of opaque pixels that are outline. Mostly outline = no internal mass. |
+| `run` | mean horizontal run of one colour. Short = sliced into confetti. |
+| `isolated` | pixels differing from all four neighbours. Pixel art is shapes, not dust. |
+| `flat` | share of the largest single-colour region. |
+| `symm` | mask against its own mirror. Context: asymmetry is fine for a creature, wrong for a machine. |
+| `tones` | distinct colours per 1000 px. Palette economy. |
+| `dominant` | share of the biggest single **fill** colour, outline excluded. |
+
+`dominant` is the one worth understanding, because `tones` is a trap. `tones`
+counts how many colours are used and is blind to one of them holding 60% of the
+sprite; a flat slab and a well-modelled figure can use the same palette and score
+identically. On the 64×96 mech, `tones` read 4.9 both before and after a fix that
+demonstrably changed the picture, while `dominant` moved from a concentrated slab
+to 0.31 against a corpus median of 0.47.
+
+**Use it relatively.** These numbers mean something against a corpus of assets you
+already consider good and bad. A threshold invented without that calibration would
+just be another arbitrary floor — the mistake this repo keeps documenting.
+
+**And it cannot see taste.** The mech's numbers came out healthy and it may still
+be ugly, because "ugly" was never a tonal-distribution problem. The tool narrows
+the space; it does not close it.
+
 ## Handing a layer to the game
 
 The game loads one generated file, `game/assets.js`, containing the packed sheet

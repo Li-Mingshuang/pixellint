@@ -18,7 +18,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.55
+      "check_ms": 1.39
     },
     {
       "group": "meadow",
@@ -38,7 +38,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.45
+      "check_ms": 0.34
     },
     {
       "group": "meadow",
@@ -58,12 +58,12 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.76
+      "check_ms": 0.29
     },
     {
       "group": "meadow",
       "module": "farmprops",
-      "name": "signpost",
+      "name": "SIGNPOST",
       "frames": 1,
       "w": 8,
       "h": 20,
@@ -78,12 +78,12 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.45
+      "check_ms": 0.25
     },
     {
       "group": "meadow",
       "module": "farmprops",
-      "name": "stump",
+      "name": "STUMP",
       "frames": 1,
       "w": 12,
       "h": 9,
@@ -98,12 +98,12 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.48
+      "check_ms": 0.27
     },
     {
       "group": "meadow",
       "module": "farmprops",
-      "name": "logpile",
+      "name": "LOGPILE",
       "frames": 1,
       "w": 16,
       "h": 10,
@@ -118,12 +118,12 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.75
+      "check_ms": 0.32
     },
     {
       "group": "meadow",
       "module": "farmprops",
-      "name": "milkchurn",
+      "name": "MILKCHURN",
       "frames": 1,
       "w": 8,
       "h": 12,
@@ -138,7 +138,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.69
+      "check_ms": 0.21
     },
     {
       "group": "meadow",
@@ -158,27 +158,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.93
-    },
-    {
-      "group": "meadow",
-      "module": "foliage",
-      "name": "CHICKEN",
-      "frames": 4,
-      "w": 12,
-      "h": 10,
-      "cells": 480,
-      "tier": "XS",
-      "keys": 6,
-      "pairs": 32,
-      "by_value": 24,
-      "margin": 0.313,
-      "mean_margin": 2.962,
-      "warnings": 4,
-      "failures": 0,
-      "struct": 0,
-      "struct_msg": null,
-      "check_ms": 1.86
+      "check_ms": 0.41
     },
     {
       "group": "meadow",
@@ -198,7 +178,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.25
+      "check_ms": 0.17
     },
     {
       "group": "meadow",
@@ -218,7 +198,27 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.24
+      "check_ms": 0.18
+    },
+    {
+      "group": "meadow",
+      "module": "foliage",
+      "name": "CHICKEN",
+      "frames": 4,
+      "w": 12,
+      "h": 10,
+      "cells": 480,
+      "tier": "XS",
+      "keys": 6,
+      "pairs": 32,
+      "by_value": 24,
+      "margin": 0.313,
+      "mean_margin": 2.962,
+      "warnings": 4,
+      "failures": 0,
+      "struct": 0,
+      "struct_msg": null,
+      "check_ms": 0.74
     },
     {
       "group": "meadow",
@@ -238,7 +238,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 20.66
+      "check_ms": 16.07
     },
     {
       "group": "meadow",
@@ -250,15 +250,15 @@
       "cells": 24576,
       "tier": "L",
       "keys": 14,
-      "pairs": 149,
-      "by_value": 125,
-      "margin": 0.148,
-      "mean_margin": 2.923,
-      "warnings": 12,
+      "pairs": 186,
+      "by_value": 142,
+      "margin": 0.093,
+      "mean_margin": 2.852,
+      "warnings": 24,
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 33.71
+      "check_ms": 28.38
     },
     {
       "group": "meadow",
@@ -278,27 +278,27 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.76
+      "check_ms": 2.33
     },
     {
       "group": "meadow",
       "module": "props",
-      "name": "FENCE",
+      "name": "TREE",
       "frames": 1,
-      "w": 32,
-      "h": 14,
-      "cells": 448,
-      "tier": "XS",
-      "keys": 3,
-      "pairs": 3,
-      "by_value": 3,
-      "margin": 0.14,
-      "mean_margin": 0.696,
-      "warnings": 0,
+      "w": 28,
+      "h": 40,
+      "cells": 1120,
+      "tier": "S",
+      "keys": 6,
+      "pairs": 8,
+      "by_value": 7,
+      "margin": 0.01,
+      "mean_margin": 0.863,
+      "warnings": 1,
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.84
+      "check_ms": 1.37
     },
     {
       "group": "meadow",
@@ -318,32 +318,32 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.13
+      "check_ms": 2.12
     },
     {
       "group": "meadow",
       "module": "props",
-      "name": "tree",
+      "name": "FENCE",
       "frames": 1,
-      "w": 28,
-      "h": 40,
-      "cells": 1120,
-      "tier": "S",
-      "keys": 6,
-      "pairs": 8,
-      "by_value": 7,
-      "margin": 0.01,
-      "mean_margin": 0.863,
-      "warnings": 1,
+      "w": 32,
+      "h": 14,
+      "cells": 448,
+      "tier": "XS",
+      "keys": 3,
+      "pairs": 3,
+      "by_value": 3,
+      "margin": 0.14,
+      "mean_margin": 0.696,
+      "warnings": 0,
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 4.6
+      "check_ms": 1.17
     },
     {
       "group": "meadow",
       "module": "props",
-      "name": "rock",
+      "name": "ROCK",
       "frames": 1,
       "w": 14,
       "h": 10,
@@ -358,7 +358,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.53
+      "check_ms": 0.26
     },
     {
       "group": "meadow",
@@ -378,7 +378,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 26.88
+      "check_ms": 19.52
     },
     {
       "group": "meadow",
@@ -398,7 +398,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": 137 floating pixel(s): [(16, 6), (17, 5), (17, 6), (18, 4), (18, 5), (18, 6), (19, 3), (19, 4)]",
-      "check_ms": 0.4
+      "check_ms": 0.38
     },
     {
       "group": "meadow",
@@ -418,7 +418,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.44
+      "check_ms": 0.87
     },
     {
       "group": "meadow",
@@ -438,7 +438,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 27.99
+      "check_ms": 23.06
     },
     {
       "group": "meadow",
@@ -458,7 +458,7 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": 137 floating pixel(s): [(16, 6), (17, 5), (17, 6), (18, 4), (18, 5), (18, 6), (19, 3), (19, 4)]",
-      "check_ms": 0.41
+      "check_ms": 0.47
     },
     {
       "group": "meadow",
@@ -478,7 +478,27 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 3.89
+      "check_ms": 3.7
+    },
+    {
+      "group": "meadow",
+      "module": "yardprops",
+      "name": "WELL",
+      "frames": 1,
+      "w": 20,
+      "h": 22,
+      "cells": 440,
+      "tier": "XS",
+      "keys": 9,
+      "pairs": 14,
+      "by_value": 12,
+      "margin": 0.14,
+      "mean_margin": 1.655,
+      "warnings": 1,
+      "failures": 0,
+      "struct": 0,
+      "struct_msg": null,
+      "check_ms": 0.95
     },
     {
       "group": "meadow",
@@ -498,32 +518,12 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.84
+      "check_ms": 0.74
     },
     {
       "group": "meadow",
       "module": "yardprops",
-      "name": "well",
-      "frames": 1,
-      "w": 20,
-      "h": 22,
-      "cells": 440,
-      "tier": "XS",
-      "keys": 9,
-      "pairs": 14,
-      "by_value": 12,
-      "margin": 0.14,
-      "mean_margin": 1.655,
-      "warnings": 1,
-      "failures": 0,
-      "struct": 0,
-      "struct_msg": null,
-      "check_ms": 1.42
-    },
-    {
-      "group": "meadow",
-      "module": "yardprops",
-      "name": "scarecrow",
+      "name": "SCARECROW",
       "frames": 1,
       "w": 14,
       "h": 30,
@@ -538,12 +538,12 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.76
+      "check_ms": 0.6
     },
     {
       "group": "meadow",
       "module": "yardprops",
-      "name": "wagon",
+      "name": "WAGON",
       "frames": 1,
       "w": 28,
       "h": 18,
@@ -558,47 +558,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.83
-    },
-    {
-      "group": "game",
-      "module": "background",
-      "name": "FAR",
-      "frames": 1,
-      "w": 320,
-      "h": 56,
-      "cells": 17920,
-      "tier": "L",
-      "keys": 2,
-      "pairs": 1,
-      "by_value": 1,
-      "margin": 7.65,
-      "mean_margin": 7.65,
-      "warnings": 0,
-      "failures": 0,
-      "struct": 1,
-      "struct_msg": ": 5998 floating pixel(s): [(0, 28), (0, 29), (0, 30), (0, 31), (0, 32), (0, 33), (0, 34), (0, 35)]",
-      "check_ms": 8.47
-    },
-    {
-      "group": "game",
-      "module": "background",
-      "name": "MID",
-      "frames": 1,
-      "w": 320,
-      "h": 64,
-      "cells": 20480,
-      "tier": "L",
-      "keys": 4,
-      "pairs": 6,
-      "by_value": 6,
-      "margin": 0.132,
-      "mean_margin": 3.982,
-      "warnings": 0,
-      "failures": 0,
-      "struct": 1,
-      "struct_msg": ": 11855 floating pixel(s): [(0, 14), (0, 15), (0, 16), (0, 17), (0, 18), (0, 19), (0, 20), (0, 21)]",
-      "check_ms": 19.44
+      "check_ms": 0.68
     },
     {
       "group": "game",
@@ -618,7 +578,47 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 75.72
+      "check_ms": 67.58
+    },
+    {
+      "group": "game",
+      "module": "background",
+      "name": "FAR",
+      "frames": 1,
+      "w": 320,
+      "h": 56,
+      "cells": 17920,
+      "tier": "L",
+      "keys": 2,
+      "pairs": 1,
+      "by_value": 1,
+      "margin": 7.65,
+      "mean_margin": 7.65,
+      "warnings": 0,
+      "failures": 0,
+      "struct": 1,
+      "struct_msg": ": 5998 floating pixel(s): [(0, 28), (0, 29), (0, 30), (0, 31), (0, 32), (0, 33), (0, 34), (0, 35)]",
+      "check_ms": 7.3
+    },
+    {
+      "group": "game",
+      "module": "background",
+      "name": "MID",
+      "frames": 1,
+      "w": 320,
+      "h": 64,
+      "cells": 20480,
+      "tier": "L",
+      "keys": 4,
+      "pairs": 6,
+      "by_value": 6,
+      "margin": 0.132,
+      "mean_margin": 3.982,
+      "warnings": 0,
+      "failures": 0,
+      "struct": 1,
+      "struct_msg": ": 11855 floating pixel(s): [(0, 14), (0, 15), (0, 16), (0, 17), (0, 18), (0, 19), (0, 20), (0, 21)]",
+      "check_ms": 16.83
     },
     {
       "group": "game",
@@ -638,107 +638,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 29.74
-    },
-    {
-      "group": "game",
-      "module": "effects",
-      "name": "BLOODPOOL",
-      "frames": 1,
-      "w": 20,
-      "h": 8,
-      "cells": 160,
-      "tier": "XS",
-      "keys": 3,
-      "pairs": 2,
-      "by_value": 1,
-      "margin": 0.241,
-      "mean_margin": 1.413,
-      "warnings": 1,
-      "failures": 0,
-      "struct": 0,
-      "struct_msg": null,
-      "check_ms": 0.23
-    },
-    {
-      "group": "game",
-      "module": "effects",
-      "name": "BLOOD_FRAMES",
-      "frames": 3,
-      "w": 8,
-      "h": 8,
-      "cells": 224,
-      "tier": "XS",
-      "keys": 3,
-      "pairs": 6,
-      "by_value": 3,
-      "margin": 0.241,
-      "mean_margin": 1.413,
-      "warnings": 3,
-      "failures": 0,
-      "struct": 3,
-      "struct_msg": ": 30 floating pixel(s): [(0, 4), (1, 3), (1, 4), (1, 5), (2, 2), (2, 3), (2, 4), (2, 5)]",
-      "check_ms": 0.27
-    },
-    {
-      "group": "game",
-      "module": "effects",
-      "name": "BULLET_FRAMES",
-      "frames": 2,
-      "w": 10,
-      "h": 4,
-      "cells": 80,
-      "tier": "XS",
-      "keys": 3,
-      "pairs": 4,
-      "by_value": 2,
-      "margin": 0.129,
-      "mean_margin": 4.407,
-      "warnings": 0,
-      "failures": 0,
-      "struct": 0,
-      "struct_msg": null,
-      "check_ms": 0.13
-    },
-    {
-      "group": "game",
-      "module": "effects",
-      "name": "CASING_FRAMES",
-      "frames": 2,
-      "w": 5,
-      "h": 4,
-      "cells": 40,
-      "tier": "XS",
-      "keys": 3,
-      "pairs": 6,
-      "by_value": 4,
-      "margin": 5.534,
-      "mean_margin": 6.096,
-      "warnings": 0,
-      "failures": 0,
-      "struct": 0,
-      "struct_msg": null,
-      "check_ms": 0.14
-    },
-    {
-      "group": "game",
-      "module": "effects",
-      "name": "DUST_FRAMES",
-      "frames": 3,
-      "w": 12,
-      "h": 8,
-      "cells": 288,
-      "tier": "XS",
-      "keys": 2,
-      "pairs": 2,
-      "by_value": 2,
-      "margin": 0.148,
-      "mean_margin": 0.099,
-      "warnings": 0,
-      "failures": 0,
-      "struct": 1,
-      "struct_msg": ": 19 floating pixel(s): [(0, 3), (0, 4), (1, 2), (1, 5), (2, 1), (2, 6), (4, 7), (5, 6)]",
-      "check_ms": 0.22
+      "check_ms": 26.87
     },
     {
       "group": "game",
@@ -758,7 +658,47 @@
       "failures": 0,
       "struct": 1,
       "struct_msg": ": fully transparent",
-      "check_ms": 0.39
+      "check_ms": 0.38
+    },
+    {
+      "group": "game",
+      "module": "effects",
+      "name": "bullet",
+      "frames": 2,
+      "w": 10,
+      "h": 4,
+      "cells": 80,
+      "tier": "XS",
+      "keys": 3,
+      "pairs": 4,
+      "by_value": 2,
+      "margin": 0.129,
+      "mean_margin": 4.407,
+      "warnings": 0,
+      "failures": 0,
+      "struct": 0,
+      "struct_msg": null,
+      "check_ms": 0.12
+    },
+    {
+      "group": "game",
+      "module": "effects",
+      "name": "casing",
+      "frames": 2,
+      "w": 5,
+      "h": 4,
+      "cells": 40,
+      "tier": "XS",
+      "keys": 3,
+      "pairs": 6,
+      "by_value": 4,
+      "margin": 5.534,
+      "mean_margin": 6.096,
+      "warnings": 0,
+      "failures": 0,
+      "struct": 0,
+      "struct_msg": null,
+      "check_ms": 0.13
     },
     {
       "group": "game",
@@ -778,7 +718,47 @@
       "failures": 0,
       "struct": 2,
       "struct_msg": ": 2 floating pixel(s): [(2, 5), (8, 5)]",
-      "check_ms": 0.22
+      "check_ms": 0.21
+    },
+    {
+      "group": "game",
+      "module": "effects",
+      "name": "blood",
+      "frames": 3,
+      "w": 8,
+      "h": 8,
+      "cells": 224,
+      "tier": "XS",
+      "keys": 3,
+      "pairs": 6,
+      "by_value": 3,
+      "margin": 0.241,
+      "mean_margin": 1.413,
+      "warnings": 3,
+      "failures": 0,
+      "struct": 3,
+      "struct_msg": ": 30 floating pixel(s): [(0, 4), (1, 3), (1, 4), (1, 5), (2, 2), (2, 3), (2, 4), (2, 5)]",
+      "check_ms": 0.24
+    },
+    {
+      "group": "game",
+      "module": "effects",
+      "name": "bloodpool",
+      "frames": 1,
+      "w": 20,
+      "h": 8,
+      "cells": 160,
+      "tier": "XS",
+      "keys": 3,
+      "pairs": 2,
+      "by_value": 1,
+      "margin": 0.241,
+      "mean_margin": 1.413,
+      "warnings": 1,
+      "failures": 0,
+      "struct": 0,
+      "struct_msg": null,
+      "check_ms": 0.21
     },
     {
       "group": "game",
@@ -798,47 +778,27 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 0.16
+      "check_ms": 0.18
     },
     {
       "group": "game",
-      "module": "player",
-      "name": "GUN_DOWN",
-      "frames": 1,
-      "w": 4,
-      "h": 11,
-      "cells": 44,
+      "module": "effects",
+      "name": "dust",
+      "frames": 3,
+      "w": 12,
+      "h": 8,
+      "cells": 288,
       "tier": "XS",
-      "keys": 4,
-      "pairs": 6,
-      "by_value": 5,
-      "margin": 0.441,
-      "mean_margin": 2.052,
-      "warnings": 1,
+      "keys": 2,
+      "pairs": 2,
+      "by_value": 2,
+      "margin": 0.148,
+      "mean_margin": 0.099,
+      "warnings": 0,
       "failures": 0,
-      "struct": 0,
-      "struct_msg": null,
-      "check_ms": 0.16
-    },
-    {
-      "group": "game",
-      "module": "player",
-      "name": "GUN_SIDE",
-      "frames": 1,
-      "w": 8,
-      "h": 4,
-      "cells": 32,
-      "tier": "XS",
-      "keys": 4,
-      "pairs": 6,
-      "by_value": 5,
-      "margin": 0.441,
-      "mean_margin": 2.052,
-      "warnings": 1,
-      "failures": 0,
-      "struct": 0,
-      "struct_msg": null,
-      "check_ms": 0.13
+      "struct": 1,
+      "struct_msg": ": 19 floating pixel(s): [(0, 3), (0, 4), (1, 2), (1, 5), (2, 1), (2, 6), (4, 7), (5, 6)]",
+      "check_ms": 0.2
     },
     {
       "group": "game",
@@ -858,7 +818,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.96
+      "check_ms": 1.83
     },
     {
       "group": "game",
@@ -878,7 +838,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 3.97
+      "check_ms": 3.56
     },
     {
       "group": "game",
@@ -898,7 +858,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.85
+      "check_ms": 2.95
     },
     {
       "group": "game",
@@ -918,7 +878,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 4.06
+      "check_ms": 3.52
     },
     {
       "group": "game",
@@ -938,7 +898,7 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 1.46
+      "check_ms": 1.36
     },
     {
       "group": "game",
@@ -958,16 +918,16 @@
       "failures": 0,
       "struct": 0,
       "struct_msg": null,
-      "check_ms": 2.87
+      "check_ms": 2.66
     }
   ],
   "skipped": [],
   "totals": {
-    "assets": 48,
-    "cells": 161830,
-    "pairs": 957,
-    "check_ms": 292.1,
+    "assets": 46,
+    "cells": 161754,
+    "pairs": 982,
+    "check_ms": 243.4,
     "failures": 0,
-    "warnings": 67
+    "warnings": 77
   }
 }

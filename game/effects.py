@@ -1,3 +1,7 @@
+
+# What this module delivers. See docs/authoring.md.
+SHIPPED = ('FX',)
+
 """Combat effects and feedback sprites for the night-city zombie shooter.
 
 Authored the house way: every frame is a list of equal-length strings, one

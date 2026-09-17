@@ -131,6 +131,45 @@ def parse_sil(entry: str):
     return out
 
 
+# PLATE TONES, by body zone. Each zone gets a three-step window from ONE grey
+# ladder, and neighbouring zones slide by one step.
+#
+# This is the fix for the reason the first version read as an ugly grey slab, and
+# the diagnosis came from measurement, not taste: legibility.py reported tones/px
+# of 4.9 for this sprite against 9.5 for the simplest tree and 41.8 for the 16x32
+# farmer. 2,864 pixels were being drawn in three armour tones. The first
+# hypothesis -- that the generator had sliced the body into confetti with 2px
+# shading bands -- was WRONG: mean run length was 2.82, above the median, and
+# isolated pixels 1.3%. It was not noisy. It was FLAT, which is the opposite
+# failure and needed the opposite fix.
+#
+# The ladder is derived, not guessed. `verdict()` was run over every consecutive
+# pair of grey palette entries, and `N-C` (5.9), `G-R` (5.6) and `g-r` (1.8) fail
+# the floor, so C, R and r are skipped:
+#
+#     W > M > N > G > c > g > B      steps: 11.5, 21.1, 17.3, 20.4, 7.4
+#
+# Every internal and cross-zone boundary is then at least one whole ladder step
+# apart, which is why this passes where the first sliding scheme did not: that one
+# put `C` next to `N` and landed at dE 5.9 against a floor of 6.
+PLATE_TONES = {
+    (0, 21):   ("W", "M", "N"),     # sensor head -- brightest, it is the focal point
+    (22, 37):  ("M", "N", "G"),     # pauldrons
+    (38, 55):  ("M", "N", "G"),     # chest, framing the cockpit
+    (56, 63):  ("N", "G", "c"),     # forearms and hands
+    (64, 72):  ("c", "g", "B"),     # hips -- darkest, they sit in their own shadow
+    (73, 89):  ("N", "G", "c"),     # legs
+    (90, 95):  ("G", "c", "g"),     # feet -- cool, they are on the ground
+}
+
+
+def tones_for(row: int) -> tuple[str, str, str]:
+    for (lo, hi), t in PLATE_TONES.items():
+        if lo <= row <= hi:
+            return t
+    return ("N", "G", "g")
+
+
 def armour(sil) -> list[list[str]]:
     """Fill the silhouette, then derive outline, highlight and shadow from it.
 
@@ -138,6 +177,10 @@ def armour(sil) -> list[list[str]]:
     keeps 96 rows consistent: every panel gets its highlight two pixels in from the
     upper-left edge and its shadow two pixels in from the lower-right, because the
     only thing that decides is where the edge is.
+
+    The three tones come from `PLATE_TONES`, so the lighting rule is constant and
+    the MATERIAL varies by zone. Getting that backwards -- one material, lighting
+    varying -- is what produces a uniform slab.
     """
     filled = [[False] * W for _ in range(H)]
     for r, entry in enumerate(sil):
@@ -153,6 +196,7 @@ def armour(sil) -> list[list[str]]:
         for c in range(W):
             if not filled[r][c]:
                 continue
+            light, base, dark = tones_for(r)
             if not (f(r - 1, c) and f(r + 1, c) and f(r, c - 1) and f(r, c + 1)):
                 grid[r][c] = "K"                      # boundary
                 continue
@@ -163,7 +207,7 @@ def armour(sil) -> list[list[str]]:
                     n += 1
                 depth.append(n)
             if min(depth) <= 1:
-                grid[r][c] = "N"                      # lit from the upper left
+                grid[r][c] = light                    # lit from the upper left
                 continue
             depth = []
             for dr, dc in ((1, 0), (0, 1)):
@@ -171,7 +215,7 @@ def armour(sil) -> list[list[str]]:
                 while f(r + dr * (n + 1), c + dc * (n + 1)) and n < 3:
                     n += 1
                 depth.append(n)
-            grid[r][c] = "g" if min(depth) <= 1 else "G"
+            grid[r][c] = dark if min(depth) <= 1 else base
     return grid
 
 
