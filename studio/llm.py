@@ -219,41 +219,132 @@ def describe() -> dict:
 # The prompt. Narrow on purpose: grid rows in, grid rows out.
 # --------------------------------------------------------------------------
 
-SYSTEM = """You are a pixel-art sprite author. You emit GRIDS, not code.
+SYSTEM = """You draw pixel-art sprites as character grids.
 
-Output format -- exactly this, nothing else:
-- One double-quoted string per row of the grid, one row per line.
-- One character per pixel.
-- The special character "." means transparent.
-- Every other character must be a palette key listed below.
-- All rows MUST be the same length.
-- Optionally, a single final line: PALETTE = "SCENE"  (or "GAME")
+Output ONLY quoted rows, one per line, every row the same length:
 
-NO commas. NO brackets. NO code fences. NO blank lines between rows. NO prose,
-headings, or explanations. Only the quoted rows, like this:
+"..KKKK.."
+".KwwwwK."
+".KwwwwK."
+"..KKKK.."
 
-"KKKKKKKK"
-"KwwwwwwK"
-"KwEEwwEK"
-"KKKKKKKK"
+Rules:
+- one character per pixel
+- "." is transparent
+- every other character must be one of the palette keys you are given
+- no code fences, no commas, no commentary -- the rows and nothing else
 
-Why the constraints exist: the grid IS the artwork. It is diffable, readable, and
-every adjacent pair of colours is machine-checked for whether a human can tell
-them apart. A character that is not a palette key is not a colour -- it is a row
-that cannot be drawn, and it will be REJECTED rather than guessed at, leaving a
-hole in the sprite. Art that reads well at this size uses a dark outline around the
-whole silhouette, at most three or four tones for shading, and light coming from
-one consistent direction.
-"""
+Draw exactly the subject you are asked for, filling the whole grid."""
 
 
-def build_prompt(rows_hint: int, cols_hint: int, palette_name: str,
-                 palette: dict, palette_help: str) -> str:
-    keys = " ".join(sorted(k for k in palette if k != "."))
+# --------------------------------------------------------------------------
+# Describing the palette so a model can actually choose colours
+# --------------------------------------------------------------------------
+
+_HUES = [(15, "red"), (45, "orange"), (70, "yellow"), (100, "yellow-green"),
+         (160, "green"), (200, "cyan"), (255, "blue"), (290, "violet"),
+         (335, "magenta"), (361, "red")]
+
+
+def _rel_luminance(rgb) -> float:
+    r, g, b = (v / 255 for v in rgb[:3])
+
+    def lin(u):
+        return u / 12.92 if u <= 0.03928 else ((u + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+
+
+def colour_name(rgb) -> str:
+    """A short human name derived from the colour itself.
+
+    Derived rather than curated on purpose. A hand-written name per key is a second
+    place that has to be kept in step with the palette, and this repo has been
+    bitten twice by lists that had to be maintained; `describe_palette` reads the
+    real numbers instead, so a new key names itself.
+
+    Lightness comes from relative LUMINANCE, not from HSV's channel maximum. The
+    first version used the latter and called `K` -- the outline colour, #1e1416,
+    relative luminance 0.008, perceptually black -- "very dark red", because its
+    red channel happens to be the largest. Telling a model that the outline is a
+    dark red is how you get a sprite with a dark red outline.
+    """
+    import colorsys
+
+    r, g, b = (v / 255 for v in rgb[:3])
+    hue, sat, _ = colorsys.rgb_to_hsv(r, g, b)
+    lum = _rel_luminance(rgb)
+
+    if lum <= 0.02:
+        return "near-black"
+    if lum >= 0.85:
+        return "near-white"
+    if sat <= 0.12:
+        base = "grey"
+    else:
+        base = next(name for limit, name in _HUES if hue * 360 < limit)
+    light = ("very dark" if lum < 0.05 else "dark" if lum < 0.15
+             else "mid" if lum < 0.35 else "light" if lum < 0.60 else "pale")
+    return f"{light} {base}"
+
+
+def describe_palette(palette: dict, palette_name: str) -> str:
+    """The palette as a lightness ladder with real colours.
+
+    THE FIRST VERSION PASSED ONLY THE KEY LETTERS -- "A B C D E F G H K N..." --
+    and it is worth stating what that does to the output, because it is the single
+    biggest reason the first generated sprites were garbage. A model given 37
+    letters and no colours is not choosing colours; it is guessing at symbols. It
+    cannot shade, cannot lay down a consistent light, and cannot even tell the
+    outline key from the highlight key. The '#' and 'X' keys it invented were what
+    guessing looks like from the outside.
+
+    Ordering by luminance is the opposite of arbitrary: it is how these palettes
+    were designed (see docs/palettes.md -- the value ladder comes first, the colours
+    second), and it lets the model pick a darker or lighter tone for shading
+    deliberately instead of at random.
+
+    The lightness column is `pixelkit.luminance`, the repo's own separation metric,
+    because that is the number that governs whether two adjacent colours can be told
+    apart. `colour_name` uses perceptual relative luminance instead. The two are
+    monotonic in each other, so the ordering is the same either way; they are not
+    the same number and are not meant to be.
+    """
+    from pixelkit import luminance
+
+    rows = sorted((k for k in palette if k != "."),
+                  key=lambda k: luminance(k, palette))
+    lines = []
+    for key in rows:
+        rgb = palette[key]
+        hexed = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+        mark = "  <- the outline colour, use it around the whole silhouette" \
+            if key == "K" else ""
+        lines.append(f"  {luminance(key, palette):.2f}  {key}  {hexed}"
+                     f"  {colour_name(rgb)}{mark}")
+    return (f"Palette {palette_name}, ordered dark to light. The first column is "
+            f"lightness (0 = black, 1 = white):\n" + "\n".join(lines))
+
+
+def build_prompt(request: str, rows: int, cols: int, palette_name: str,
+                 palette: dict) -> str:
+    """The user's message: what to draw, how big, and what it may draw with.
+
+    `request` is the user's own words and must survive to the model. It did not, in
+    the first version: the studio accepted a prompt, stored it, and built the
+    message without it, so every sprite was drawn from the phrase "Author a sprite
+    on a 16 wide by 16 tall grid" alone. The model was doing exactly what it was
+    asked -- with the subject missing.
+    """
     return (
-        f"Author a sprite on a {cols_hint} wide by {rows_hint} tall grid.\n\n"
-        f"Palette ({palette_name}): {keys}\n\n"
-        f"{palette_help}\n"
+        f"Draw this, as a pixel-art sprite:\n\n    {request.strip()}\n\n"
+        f"Grid: {cols} columns wide and {rows} rows tall. Emit exactly {rows} rows "
+        f"of exactly {cols} characters.\n\n"
+        f"{describe_palette(palette, palette_name)}\n\n"
+        f"Draw the silhouette first, wrap the whole outline in K so it reads "
+        f"against any background, then shade with two or three neighbouring tones "
+        f"from the ladder above. Keep the light coming from one direction, the "
+        f"upper left."
     )
 
 
@@ -572,6 +663,9 @@ def _iter_openai(response) -> Iterator[tuple]:
                 yield ("reasoning", delta["reasoning_content"])
             if delta.get("content"):
                 yield ("content", delta["content"])
+            reason = choice.get("finish_reason")
+            if reason:
+                yield ("finish", reason)
 
 
 def _iter_anthropic(response) -> Iterator[tuple]:
@@ -583,13 +677,16 @@ def _iter_anthropic(response) -> Iterator[tuple]:
             chunk = json.loads(line[5:].strip())
         except json.JSONDecodeError:
             continue
-        if chunk.get("type") != "content_block_delta":
-            continue
-        delta = chunk.get("delta") or {}
-        if delta.get("type") == "thinking_delta" and delta.get("thinking"):
-            yield ("reasoning", delta["thinking"])
-        elif delta.get("text"):
-            yield ("content", delta["text"])
+        if chunk.get("type") == "content_block_delta":
+            delta = chunk.get("delta") or {}
+            if delta.get("type") == "thinking_delta" and delta.get("thinking"):
+                yield ("reasoning", delta["thinking"])
+            elif delta.get("text"):
+                yield ("content", delta["text"])
+        elif chunk.get("type") == "message_delta":
+            reason = (chunk.get("delta") or {}).get("stop_reason")
+            if reason:
+                yield ("finish", reason)
 
 
 # The offline stub. A real grid, emitted in small pieces through the same code

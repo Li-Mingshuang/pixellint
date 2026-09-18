@@ -268,6 +268,89 @@ def check_module_writing() -> None:
             ok(f"{label} is refused by module_source")
 
 
+def check_prompt() -> None:
+    """The prompt is the feature. Every one of these failed at least once.
+
+    A sprite generator that does not tell the model what to draw, or what its colour
+    keys mean, produces confident garbage -- and worse, produces it through a
+    pipeline that reports the garbage as structurally valid art. So the content of
+    the message is asserted, not just its shape.
+    """
+    section("the prompt sent to the model")
+
+    palette = SCENE_PALETTE
+    request = "a rusty watering can with a dented spout"
+    text = llm.build_prompt(request, rows=16, cols=20, palette_name="SCENE",
+                            palette=palette)
+
+    # THE regression. The studio accepted a prompt, stored it, and built the message
+    # without it: every sprite was drawn from the grid dimensions alone, which is
+    # why the first generated sprites were unrelated to what was asked for.
+    if request not in text:
+        fail("the user's own request is not in the prompt -> the model is not told "
+             "what to draw")
+    else:
+        ok("the user's request is in the prompt, verbatim")
+
+    if "20 columns wide and 16 rows tall" not in text:
+        fail("the requested grid dimensions are not stated in the prompt")
+    else:
+        ok("the grid dimensions are stated")
+
+    # The palette must arrive as COLOURS. Passing only the key letters is what made
+    # the first version guess: it cannot shade, cannot place a light, and cannot
+    # tell the outline key from the highlight key.
+    missing = [k for k in palette if k != "." and k not in text]
+    if missing:
+        fail(f"palette keys absent from the prompt: {sorted(missing)}")
+    else:
+        ok(f"all {len(palette) - 1} palette keys appear in the prompt")
+
+    hexes = {f"#{c[0]:02x}{c[1]:02x}{c[2]:02x}" for k, c in palette.items() if k != "."}
+    absent = [h for h in hexes if h not in text]
+    if absent:
+        fail(f"{len(absent)} palette colours have no hex value in the prompt "
+             f"(e.g. {sorted(absent)[:3]}): the model cannot choose a colour")
+    else:
+        ok(f"all {len(hexes)} colours appear as hex, so a colour can be chosen")
+
+    # Each key needs a name too, otherwise the model reads 37 near-identical rows.
+    named = all(llm.colour_name(palette[k]) in text for k in palette if k != ".")
+    if not named:
+        fail("a palette entry has no colour name in the prompt")
+    else:
+        ok("every palette entry carries a derived colour name")
+
+    # The ladder must be dark-to-light ordered. That is how these palettes were
+    # designed, and it is what lets the model pick a shading tone deliberately.
+    from pixelkit import luminance
+    values = [luminance(k, palette) for k in sorted(
+        (k for k in palette if k != "."), key=lambda k: luminance(k, palette))]
+    reversed_values = sorted(values, reverse=True)
+    if values != sorted(values):
+        fail("the palette ladder is not ordered dark to light")
+    else:
+        ok(f"the ladder is ordered dark to light ({values[0]:.2f} .. {values[-1]:.2f})")
+
+    # The outline convention is stated, because "wrap it in K" is the single rule
+    # that makes a sprite read against any background.
+    if "outline" not in text.lower() or "<- the outline" not in text:
+        fail("the outline key is not marked in the prompt")
+    else:
+        ok("the outline key is marked explicitly")
+
+    # The colour namer is derived from the palette, so spot-check it against colours
+    # whose names are not in doubt rather than trusting it blind.
+    cases = [((30, 20, 22), "near-black"), ((251, 248, 240), "near-white"),
+             ((138, 138, 150), "grey")]
+    for rgb, want in cases:
+        got = llm.colour_name(rgb)
+        if want not in got:
+            fail(f"colour_name({rgb}) = {got!r}, expected something like {want!r}")
+        else:
+            ok(f"colour_name({rgb}) = {got!r}")
+
+
 # --------------------------------------------------------------------------
 # 3. Rendering grids without executing anything
 # --------------------------------------------------------------------------
@@ -591,6 +674,7 @@ def check_http() -> None:
 
 
 def main() -> int:
+    check_prompt()
     check_parsing()
     check_module_writing()
     check_render()

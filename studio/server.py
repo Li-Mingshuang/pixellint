@@ -249,19 +249,26 @@ class Studio:
             })
             messages = [
                 {"role": "system", "content": llm.SYSTEM},
+                # `prompt` is the user's own words. It MUST reach the model: the
+                # first version accepted a prompt, stored it on the job, and built
+                # the message without it, so every sprite was drawn from the grid
+                # dimensions alone.
                 {"role": "user", "content": llm.build_prompt(
-                    rows_hint, cols, palette_name, palette,
-                    _palette_help(palette_name))},
+                    prompt, rows_hint, cols, palette_name, palette)},
             ]
             # The grid event is throttled to the moments the picture can actually
             # change -- a new row, or a row whose width changed. Emitting the whole
             # grid on every token would put thousands of near-identical copies in
             # the replay buffer for a preview that redraws identically.
             last_shape = None
+            finish_reason = None
             for channel, piece in llm.stream(messages, provider, chosen_model, key,
                                              job.stop_requested.is_set):
                 if job.stop_requested.is_set():
                     break
+                if channel == "finish":
+                    finish_reason = piece
+                    continue
                 if channel == "content":
                     job.text += piece
                 job.emit(channel, {"text": piece})
@@ -275,8 +282,27 @@ class Studio:
 
             grid = llm.extract_grid(job.text, allowed=allowed)
             job.emit("grid", grid)
+            # A truncated response quietly loses the bottom of the sprite. Nothing
+            # else reports it: the rows that did arrive are perfectly valid, so the
+            # grid looks short rather than broken.
+            if finish_reason in ("length", "max_tokens"):
+                job.emit("diagnosis", {"notes": [
+                    f"the response hit the model's output limit and was cut off "
+                    f"(finish_reason={finish_reason}); the sprite is missing its "
+                    f"bottom rows. Try a smaller grid, or a model with a larger "
+                    f"output limit."], "rows_kept": grid["height"],
+                    "rows_rejected": grid.get("rejected_count", 0),
+                    "palette_keys": ""})
             _diagnose(job, grid, palette_name)
-            palette_final = grid["palette"] or palette_name
+            # The user chose the palette in the form, so that choice wins. The model
+            # is no longer asked for a PALETTE line, and if it volunteers one it is
+            # reported rather than obeyed -- silently switching palettes would mean
+            # the colours in the preview are not the ones the user picked.
+            if grid["palette"] and grid["palette"] != palette_name:
+                job.emit("note", {"text":
+                    f"the model asked for the {grid['palette']} palette; keeping "
+                    f"{palette_name} as chosen in the form"})
+            palette_final = palette_name
             meta = {"provider": provider.name, "model": chosen_model}
             try:
                 source = llm.module_source("generated_sprite.py", grid["rows"],
@@ -442,11 +468,15 @@ def _diagnose(job: Job, grid: dict, palette_name: str) -> None:
 
 
 def _palette_help(name: str) -> str:
-    if name == "GAME":
-        return ("This is the side-scrolling shooter palette: a 320x180 canvas, "
-                "outlines are 'K', the ground line is y=148.")
-    return ("This is the meadow palette. Objects are placed on a ground line and "
-            "must not overlap another object while sharing a dominant colour.")
+    """Kept only for the plan endpoint's blurb. The prompt no longer uses it.
+
+    It used to be passed to the model, and it was wrong for the job: it described
+    SCENE as "objects are placed on a ground line and must not overlap another
+    object while sharing a dominant colour" -- a rule about arranging a SCENE,
+    handed to a model that had been asked to draw one sprite. Guidance that does
+    not apply to the task is worse than no guidance.
+    """
+    return "meadow scene" if name != "GAME" else "side-scrolling shooter"
 
 
 def plan() -> dict:

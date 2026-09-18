@@ -455,8 +455,9 @@ function drawLLM() {
   const banner = $("banner");
   if (info.active === "offline") {
     banner.style.display = "block";
-    banner.textContent = "Offline stub: emits a fixed grid through the real streaming " +
-      "path — no network, no key, no cost. It exercises the same code the API path uses.";
+    banner.textContent = "Offline stub: emits a FIXED sample sprite through the real " +
+      "streaming path — it ignores your prompt. No network, no key, no cost. " +
+      "Pick a real provider below to have your request actually drawn.";
   } else if (!info.ready) {
     banner.style.display = "block";
     banner.textContent = "No key for " + info.active + ". Paste one below and press " +
@@ -526,6 +527,10 @@ function attach(jobId, label) {
     const d = JSON.parse(e.data);
     $("think").textContent += d.text;
     $("think").scrollTop = $("think").scrollHeight;
+  });
+  es.addEventListener("note", (e) => {
+    const d = JSON.parse(e.data);
+    log("  note: " + d.text, "WARN");
   });
   es.addEventListener("grid", (e) => drawGrid(JSON.parse(e.data)));
   es.addEventListener("source", (e) => {
