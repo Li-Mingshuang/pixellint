@@ -315,6 +315,10 @@ function markStep(script, state, detail) {
 
 /* ── problems ────────────────────────────────────────────────────────── */
 function addProblem(level, text, script) {
+  // Dedupe: the same assertion can be reported by more than one channel, and a
+  // problem panel where every line appears twice is a panel nobody reads.
+  const key = level + "|" + text;
+  if (S.problems.some((p) => p.level + "|" + p.text === key)) return;
   S.problems.push({ level, text, script });
   renderProblems();
 }
@@ -486,14 +490,31 @@ function attach(jobId, label) {
                         (d.key_present ? "" : "  no key"), "meta");
   });
   es.addEventListener("line", (e) => {
+    // The log only. Problems come from the structured `verdict` event, not from
+    // this raw line: `_inspect_line` emits one for exactly the same text, so
+    // adding it here too listed every failure TWICE -- and the raw line already
+    // starts with "FAIL", which the problem renderer then prefixed again, giving
+    // the panel a chorus of "FAIL  FAIL  ...".
     const t = JSON.parse(e.data).text;
     const m = /^\s*(FAIL|WARN)\b/.exec(t);
     log(t, m ? m[1] : (/^\s*ok\b/.test(t) ? "ok" : ""));
-    if (m) addProblem(m[1] === "FAIL" ? "fail" : "warn", t.trim().slice(0, 400), currentScript);
   });
   es.addEventListener("verdict", (e) => {
     const d = JSON.parse(e.data);
     addProblem(d.level, d.text.slice(0, 400), currentScript);
+  });
+  es.addEventListener("diagnosis", (e) => {
+    const d = JSON.parse(e.data);
+    log("— why this grid is unusable —", "WARN");
+    for (const note of d.notes) log("   " + note, "WARN");
+    log("   palette keys: " + d.palette_keys, "meta");
+    log("   rows kept " + d.rows_kept + ", rejected " + d.rows_rejected, "meta");
+    addProblem("fail", "the model's grid could not be used: " + d.notes[0], currentScript);
+    const box = $("sprite");
+    if (box.querySelector(".hint") || !box.querySelector("img")) {
+      box.innerHTML = '<div class="hint"></div>';
+      box.querySelector(".hint").textContent = d.notes.join("\n");
+    }
   });
   es.addEventListener("asset", (e) => pushAsset(JSON.parse(e.data)));
   es.addEventListener("content", (e) => {

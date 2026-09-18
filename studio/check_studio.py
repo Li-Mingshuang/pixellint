@@ -134,6 +134,47 @@ def check_parsing() -> None:
     else:
         ok("only palette-valid rows survive, so reasoning cannot become pixels")
 
+    # REGRESSION, and the expensive one. A real DeepSeek call came back as a 16x1
+    # grid of transparent pixels because the model wrote a Python list literal and
+    # every row ended in a comma. The comma carries no information about the art,
+    # and rejecting it silently cost an hour of confusion.
+    comma_rows = ['"KKKKKKKKKKKKKKKK",', '"KwwwwwwwwwwwwwwK",', '"KKKKKKKKKKKKKKKK",']
+    grid = llm.extract_grid("\n".join(["```python", "["] + comma_rows + ["]", "```"]),
+                            allowed=set("Kw."))
+    if grid["height"] != 3:
+        fail(f"trailing commas still destroy rows: kept {grid['height']} of 3")
+    else:
+        ok("trailing commas, list brackets and code fences are tolerated")
+
+    # REGRESSION: a row using characters that are not palette keys must be REPORTED,
+    # not dropped quietly. Dropping it quietly produced a blank sprite and a message
+    # that described the symptom ("fully transparent") rather than the cause.
+    grid = llm.extract_grid('"################"\n"#..XXXX..XXXX..#"\n', allowed=set("Kk."))
+    if not grid["unknown_keys"]:
+        fail("rejected rows left no trace: the studio cannot say why the art is blank")
+    elif set(grid["unknown_keys"]) != {"#", "X"}:
+        fail(f"unknown keys misreported: {grid['unknown_keys']}")
+    else:
+        ok(f"rows using non-palette characters are reported: {grid['unknown_keys']}")
+    if grid["rejected_count"] < 2:
+        fail("rejected rows were not counted")
+    else:
+        ok(f"{grid['rejected_count']} rejected row(s) counted and sampled")
+
+    # The diagnosis the studio shows must name the offending characters AND the
+    # legal ones, because "fully transparent" is not something a user can act on.
+    job = studio_server.Job(0, "generate", "probe")
+    studio_server._diagnose(job, grid, "SCENE")
+    notes = [data for _, name, data in job.snapshot() if name == "diagnosis"]
+    if not notes:
+        fail("an unusable grid produced no diagnosis event")
+    else:
+        blob = " ".join(notes[0]["notes"])
+        if "#" not in blob or "SCENE" not in blob:
+            fail(f"the diagnosis does not name the cause: {blob[:120]}")
+        else:
+            ok("the diagnosis names the offending characters and the legal palette")
+
 
 # --------------------------------------------------------------------------
 # 2. Writing modules
@@ -215,9 +256,11 @@ def check_module_writing() -> None:
             ok(f"a detached pixel is rejected: {found[0][:64]}")
 
     # Bad input must be refused loudly, never silently corrected.
+    blank = ["." * 12] * 12
     for label, rows, palette in (("ragged rows", GOOD_ROWS + [".."], "SCENE"),
                                  ("no rows", [], "SCENE"),
-                                 ("unknown palette", GOOD_ROWS, "NOPE")):
+                                 ("unknown palette", GOOD_ROWS, "NOPE"),
+                                 ("a fully transparent grid", blank, "SCENE")):
         try:
             llm.module_source("x.py", rows, palette, meta)
             fail(f"{label} was accepted by module_source")

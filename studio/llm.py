@@ -229,14 +229,21 @@ Output format -- exactly this, nothing else:
 - All rows MUST be the same length.
 - Optionally, a single final line: PALETTE = "SCENE"  (or "GAME")
 
-Do not write Python. Do not write prose, headings, or explanations. Do not use
-markdown code fences. Only the quoted rows.
+NO commas. NO brackets. NO code fences. NO blank lines between rows. NO prose,
+headings, or explanations. Only the quoted rows, like this:
+
+"KKKKKKKK"
+"KwwwwwwK"
+"KwEEwwEK"
+"KKKKKKKK"
 
 Why the constraints exist: the grid IS the artwork. It is diffable, readable, and
 every adjacent pair of colours is machine-checked for whether a human can tell
-them apart. Art that reads well at this size uses a dark outline around the whole
-silhouette, at most three or four tones for shading, and light coming from one
-consistent direction.
+them apart. A character that is not a palette key is not a colour -- it is a row
+that cannot be drawn, and it will be REJECTED rather than guessed at, leaving a
+hole in the sprite. Art that reads well at this size uses a dark outline around the
+whole silhouette, at most three or four tones for shading, and light coming from
+one consistent direction.
 """
 
 
@@ -263,38 +270,66 @@ def extract_grid(text: str, allowed: set | None = None, max_rows: int = 200) -> 
     """Pull quoted rows out of streamed text. Never executes anything.
 
     Models ignore instructions. Ask for quoted rows and nothing else and you will
-    still get a docstring, a fenced code block, or a sentence explaining the
-    sprite. So this parser is defensive in four specific ways, each one learned by
-    watching the offline stub -- which emits a docstring on purpose, precisely so
-    the happy path exercises the parser's defences:
+    still get a docstring, a fenced code block, a Python list literal, or a
+    sentence explaining the sprite. So this parser is tolerant about FORM and
+    strict about CONTENT, and it REPORTS what it rejected instead of dropping it
+    quietly.
 
-    * a row must be non-empty and contain no whitespace. An empty pair of quotes
-      inside a model's docstring was the failure that started this: it matches the
-      row pattern and parses as a zero-width grid row.
-    * triple-quoted lines are skipped wholesale.
-    * a row is dropped unless its closing quote arrived, so the live preview shows
-      only pixels the model has actually committed to. Padding a half-arrived row
-      would make the preview show art that does not exist.
-    * when `allowed` (the active palette's keys) is supplied, every character must
-      be in it. This is the check that turns "looks like a row" into "is a row".
+    That last part is the important one. The first version of this silently
+    discarded any row it did not like, and the failure it produced was a blank
+    sprite with no explanation: a real DeepSeek call came back as a 16x1 grid of
+    transparent pixels, because
+
+        "KKKKKKKK",
+
+    -- a row with a trailing comma, the most natural thing for a model that has
+    seen a million Python list literals -- ended with a comma rather than a quote,
+    so EVERY row was dropped. The comma carries no information about the art, and
+    rejecting it was pedantry with a silent, expensive consequence.
+
+    Tolerated form: trailing commas, list brackets, code fences, blank lines,
+    indentation, surrounding prose. Rejected content, and reported: a row using a
+    character that is not a palette key (drawn nowhere rather than guessed at), a
+    row whose closing quote has not arrived yet, or a row of whitespace.
     """
     rows: list = []
+    rejected: list = []
+    unknown: dict = {}
+
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or '"""' in stripped:
             continue
         if stripped.upper().startswith("PALETTE"):
             continue
-        if not stripped.rstrip().endswith('"'):
-            continue                    # closing quote has not arrived yet
-        found = _ROW.findall(stripped)
+        # A trailing comma is punctuation from a list literal, not art. Strip it
+        # before deciding whether the row is complete.
+        probe = stripped.rstrip(",").rstrip()
+        if not probe.endswith('"'):
+            # A line that looks like the start of a row but has no closing quote is
+            # still arriving -- not an error, just not usable yet.
+            if probe.startswith('"'):
+                rejected.append(("still arriving", stripped[:48]))
+            continue
+        found = _ROW.findall(probe)
         if len(found) != 1:
+            rejected.append((f"{len(found)} quoted strings on one line", stripped[:48]))
             continue
         row = found[0]
-        if not row or any(ch.isspace() for ch in row):
+        if not row:
+            rejected.append(("empty row", stripped[:48]))
             continue
-        if allowed is not None and not set(row) <= allowed:
+        if any(ch.isspace() for ch in row):
+            rejected.append(("whitespace inside a row", stripped[:48]))
             continue
+        if allowed is not None:
+            stray = set(row) - allowed
+            if stray:
+                for ch in stray:
+                    unknown[ch] = unknown.get(ch, 0) + row.count(ch)
+                rejected.append((f"not palette keys: {''.join(sorted(stray))}",
+                                 stripped[:48]))
+                continue
         rows.append(row)
         if len(rows) >= max_rows:
             break
@@ -316,6 +351,12 @@ def extract_grid(text: str, allowed: set | None = None, max_rows: int = 200) -> 
         "widths": widths,
         "width": len(rows[0]) if rows else 0,
         "height": len(rows),
+        # So the studio can say WHY a grid came out wrong instead of showing an
+        # empty canvas and letting the user guess.
+        "rejected": rejected[-40:],
+        "rejected_count": len(rejected),
+        "unknown_keys": dict(sorted(unknown.items(), key=lambda kv: -kv[1])),
+        "opaque": sum(1 for r in rows for ch in r if ch != "."),
     }
 
 
@@ -336,6 +377,15 @@ def module_source(name: str, rows: list, palette_name: str, meta: dict) -> str:
     widths = sorted({len(r) for r in rows})
     if len(widths) != 1:
         raise ValueError(f"ragged grid: row widths {widths}")
+    # Art with no pixels is not art, and writing it produces a module that is
+    # guaranteed to fail its own gate -- a wasted round trip and a confusing
+    # "fully transparent" message that says nothing about the real cause. Refusing
+    # here turns it into one clear error at the moment it happens.
+    opaque = sum(1 for r in rows for ch in r if ch != ".")
+    if not opaque:
+        raise ValueError(
+            f"the grid is entirely transparent ({len(rows)}x{len(rows[0])} of '.'); "
+            f"nothing would be drawn")
 
     # FRAMES is a list of FRAMES, i.e. a list of grids -- the shape mech.FRAMES,
     # dog.DOG_FRAMES and walk_cycle.FRAMES all use, and the shape evaluate.py and

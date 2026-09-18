@@ -275,6 +275,7 @@ class Studio:
 
             grid = llm.extract_grid(job.text, allowed=allowed)
             job.emit("grid", grid)
+            _diagnose(job, grid, palette_name)
             palette_final = grid["palette"] or palette_name
             meta = {"provider": provider.name, "model": chosen_model}
             try:
@@ -400,6 +401,44 @@ def _palette(name: str):
     from gamepalette import GAME_PALETTE
     from pixelkit import SCENE_PALETTE
     return GAME_PALETTE if name == "GAME" else SCENE_PALETTE
+
+
+def _diagnose(job: Job, grid: dict, palette_name: str) -> None:
+    """Say WHY a generated grid is unusable, in terms of what the model did.
+
+    This exists because of a real failure. A DeepSeek call came back as a 16x1 grid
+    of transparent pixels, and all the studio could say was "fully transparent" --
+    which is a description of the symptom, not the cause. The cause was that the
+    model had written a Python list literal, so every row ended in a comma and the
+    parser of the day rejected all of them, keeping one blank row that happened to
+    end in a quote. An hour of confusion for a comma.
+
+    So: never report an empty grid without saying what was thrown away and what
+    characters were not palette keys. The user cannot fix what they cannot see.
+    """
+    stray = grid.get("unknown_keys") or {}
+    reasons: dict = {}
+    for reason, sample in grid.get("rejected") or []:
+        reasons.setdefault(reason, sample)
+
+    notes = []
+    if grid["height"] == 0:
+        notes.append("no usable rows arrived at all")
+    if stray:
+        shown = ", ".join(f"{ch!r} x{count}" for ch, count in list(stray.items())[:6])
+        notes.append(f"characters that are not {palette_name} palette keys: {shown}")
+    for reason, sample in list(reasons.items())[:4]:
+        notes.append(f"rejected ({reason}): {sample}")
+    if grid["height"] and not grid["opaque"]:
+        notes.append(f"{grid['height']} row(s) arrived but every pixel is '.'")
+
+    if notes:
+        job.emit("diagnosis", {
+            "notes": notes,
+            "palette_keys": "".join(sorted(k for k in _palette(palette_name) if k != ".")),
+            "rows_kept": grid["height"],
+            "rows_rejected": grid.get("rejected_count", 0),
+        })
 
 
 def _palette_help(name: str) -> str:
