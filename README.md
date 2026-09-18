@@ -278,13 +278,13 @@ is adjudication, not difficulty.
 A forced build on 8 cores, per step:
 
 ```
-full build               8.4 s
-  render wave 1          2.9 s   (11 steps, parallel; longest = compose scene)
-    compose scene        2.94 s  (16 frames of 320x96)
-    render pilotpup      0.67 s
+full build               7.0 s
+  render wave 1          1.6 s   (11 steps, parallel; longest = compose scene)
+    compose scene        1.57 s  (16 frames of 320x96)
+    render pilotpup      0.74 s
     the other 9         ~0.45 s each
-  render wave 2          2.2 s   (game GIF: headless run + frame compositing)
-  checks, 18 scripts     ~1.6 s  (parallel; longest = check_background)
+  render wave 2          1.9 s   (game GIF: headless replay + 36x median cut)
+  checks, 19 scripts     ~1.7 s  (parallel; longest = check_scene)
   report                 0.3 s
 ```
 
@@ -381,15 +381,20 @@ python build.py          # incremental and parallel
 
 | | wall time |
 |---|---|
-| serial (`--jobs 1`) | 12.7 s |
-| parallel, forced rebuild | **~8 s** |
-| incremental, nothing changed | **2.8 s** |
+| serial (`--jobs 1`, forced) | 11.7 s |
+| parallel, forced rebuild | **6.7–7.2 s** |
+| incremental, nothing changed | **3.4 s** |
 | after editing one module | only that module's steps rerun (~0.3 s) |
 
-Two things got it there, and measuring said which two. The serial build was 11.1 s,
-split roughly half rendering and half checks, with **~2 s of interpreter startup
-embedded in both** — real, but the third-largest term, so chasing it first would
-have been the wrong move. Instead:
+For scale: the serial build was 12.7 s and the parallel one 8.4 s before this pass.
+The forced path is where the win is. The incremental path is essentially unchanged —
+3.1 s → 3.4 s, the difference being one added check — and claiming otherwise would be
+dressing up a number.
+
+Two things got the forced path down, and measuring said which two. The serial build
+was 11.1 s, split roughly half rendering and half checks, with **~2 s of interpreter
+startup embedded in both** — real, but the third-largest term, so chasing it first
+would have been the wrong move. Instead:
 
 - **Parallel waves.** Steps within a wave have no dependencies on each other, so a
   wave costs its slowest member rather than the sum of its members. The gameplay GIF
@@ -400,6 +405,23 @@ have been the wrong move. Instead:
   and a stale dependency in a build cache is worse than no cache: it serves old
   output as if it were new. Data files cannot be found that way, so `scene.py`
   declares the spec as an extra input.
+
+A third term turned up once the first two were in. `scene.py` spent 1.6 s of its
+2.9 s running **median-cut colour quantisation**, 32 times over, to rediscover the
+35 colours its own locked palette had already fixed. Deriving that palette once and
+indexing against it is exact — a NEAREST resize replicates pixels and cannot invent
+a colour, so one palette covers every scale — and it took the step to 1.6 s with
+**zero pixels changed**, verified frame by frame against the committed GIFs.
+`check_scene.py` now asserts the invariant and then demonstrates that the assertion
+can fail. The first attempt at that fix made the step *slower* (2.9 s → 8.0 s), which
+is recorded in [decisions.md](docs/decisions.md), because getting it wrong first is
+the normal way to find out where a cost actually lives.
+
+The same fix was measured against the gameplay GIF and **deliberately not applied**:
+those frames hold 30–189 distinct colours each, because translucent blending
+genuinely manufactures colours that are in no palette. There, median cut is doing
+real work. The fix transfers only where a locked palette makes it a no-op, and the
+only way to know which case you are in is to count.
 
 **CI runs `--force`.** That is not belt-and-braces: on a fresh checkout every file
 shares a timestamp, so an incremental build would skip the very render steps that

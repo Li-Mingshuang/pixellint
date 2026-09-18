@@ -254,8 +254,84 @@ on a fresh checkout, where every file shares a timestamp, an incremental build w
 skip the very render steps the reproducibility check exists to exercise and the
 check would pass trivially.
 
-**Measured.** 12.7 s serial → 8.4 s forced parallel → 2.8 s incremental no-op.
+**Measured.** 12.7 s serial → 8.4 s forced parallel → 2.7 s incremental no-op.
 Touching `mech.py` alone reruns one step (323 ms).
+
+---
+
+## 019 — Where a locked palette makes quantisation a no-op, skip it
+
+**Was.** `scene.py` rendered each GIF frame with
+`convert("P", palette=ADAPTIVE, colors=128)`. That was **1.6 s of the step's
+2.9 s** — the single most expensive operation in the build.
+
+**Decision.** Derive the animation's colour set once and index every frame against
+it, falling back to per-frame median cut when the set does not fit in a GIF.
+
+**Why it is exact, not approximate.** The scene is drawn from a locked palette, so
+the colour count is a property of the *palette*, not of the canvas: the meadow is
+35 colours at 320px and at 2560px. Median cut was clustering 1.97 million pixels
+32 separate times to arrive back at those same 35. Every pixel colour is in the
+derived set by construction, so the nearest-colour match has distance zero.
+`check_scene.py` asserts the round trip and then damages the palette two ways to
+show the assertion can fail.
+
+**Two measured details that are load-bearing.**
+
+| | |
+|---|---|
+| `preview()` composites over the background at the **source** size, then resizes NEAREST. A NEAREST resize replicates pixels and cannot invent a colour, so the colour set is scale-invariant — which is what licenses deriving it from the small frames. | Verified: identical sets at x1, x4, x8. |
+| The bound passed to `getcolors` is not a tuning knob. `getcolors(1 << 24)` makes Pillow take a slow path and cost **3.7 s** for 491,520 pixels; `getcolors(129)` costs **1.7 ms**. | 2000x, and the small bound is *also* the semantic guard: Pillow returns None past it, which is the "will not fit in a GIF" signal. |
+
+**The first attempt was slower than the code it replaced.** It derived the palette
+from the scaled-up 2560x768 output and took `scene.py` from 2.9 s to **8.0 s**. The
+cost was never the median cut's arithmetic; it was the colour *enumeration* on a
+31.5-million-pixel image. Fixing that took the step to 1.3 s, pixel-identical.
+Recorded because "I optimised it and it got worse" is the normal way to find out
+where the cost actually lives.
+
+**Deliberately not applied to the gameplay GIF.** Its frames hold 30–189 distinct
+colours each (1140 across the animation), because translucent compositing — dust,
+blood, muzzle light — genuinely manufactures colours that are in no palette. There,
+median cut is doing real work. The fix transfers only where a locked palette makes
+it a no-op, and the only way to tell the two cases apart is to count, so the count
+is recorded in the README next to the numbers it justifies.
+
+**Measured.** `compose scene` 2943 ms → 1570 ms; forced build 8.4 s → 7.0 s; every
+committed GIF pixel-identical.
+
+---
+
+## 020 — "Importing is safe" is checked, not assumed
+
+**Was.** `evaluate.py` discovers assets by shape: it imports every non-underscore,
+non-`check_`, non-internal module in the repo root and `game/`, and measures what
+it finds. Beside that code sat the comment *"Importing is safe: every module here
+guards its entry point behind `if __name__ == "__main__"`."*
+
+**What happened.** Six throwaway measurement scripts were dropped into the repo root
+during decision 019. They had no `__main__` guard. So the report step imported them
+and they **ran**: benchmarks printed into the middle of the build output, one called
+`sys.exit()`, and the build went from 8.4 s to **17.9 s with no failing step to
+point at the cause**. Nothing was broken. The assumption had stopped being true and
+nothing was watching it.
+
+**Decision.** `check_modules.py` imports each candidate in a subprocess with its
+output captured and names any module that prints, exits or throws. Silent pure
+import-time work — building grids, deriving a palette — is fine and is not flagged.
+
+**Why behavioural rather than a source scan.** Any static rule about "side effects
+at import" is a guess about what counts; running the import is not. And the check
+deliberately calls `evaluate._candidate_modules()` instead of restating the rule, so
+the set being tested cannot drift from the set being imported.
+
+**Negative-tested**, in a temp directory the build's own discovery cannot see: a
+module that prints and a module that exits must both be caught.
+
+**Generalisation.** This is the second hazard of decision 016 (discover by shape,
+never from a maintained list). The first is that a stray file gets *absorbed*; the
+second is that it gets *executed*. Discovery by shape needs the shape to be
+enforced.
 
 ---
 

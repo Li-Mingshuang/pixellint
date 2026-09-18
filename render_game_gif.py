@@ -22,6 +22,7 @@ from export_game_atlas import ASSETS, GAME, HERE
 
 FRAMES = GAME / "frames.json"
 SCALE = 3
+W, H = 320, 180        # the game's canvas; compose() replays ops against it
 FRAME_MS = 67
 DUMP_FRAMES = 36       # 36 x 67ms = 2.4s loop; enough to show the whole rhythm
 GIF_COLOURS = 64       # 128 pushed the file past a megabyte for no visible gain
@@ -96,30 +97,11 @@ def _stale() -> bool:
     return atlas_js.stat().st_mtime > FRAMES.stat().st_mtime
 
 
-def main() -> int:
-    if _stale() or "--fresh" in sys.argv:
-        import shutil
-        import subprocess
-        node = shutil.which("node")
-        if not node:
-            print("node not found and game/frames.json is stale -- cannot render")
-            return 1
-        print("recording frames from the game...")
-        rc = subprocess.call([node, str(GAME / "smoke_test.mjs"), "--dump", str(DUMP_FRAMES)],
-                             cwd=HERE)
-        if rc != 0 or not FRAMES.exists():
-            print("failed to record frames")
-            return rc or 1
-    else:
-        print("frames.json is newer than the atlas, reusing it")
-
-    sheet, atlas = load_atlas()
-    frames = json.loads(FRAMES.read_text(encoding="utf-8"))
-
-    W, H = 320, 180
+def compose(frames, sheet, atlas, w: int = W, h: int = H):
+    """Replay the recorded ops into one RGBA image per frame, at 1x."""
     out = []
     for fr in frames:
-        img = Image.new("RGBA", (W, H), (0, 0, 0, 255))
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 255))
         # Replay in the ORDER THE GAME ISSUED THEM. This is not a detail: the
         # first thing the renderer does is clear the frame with a full-canvas
         # fill, and an earlier version of this compositor collected full-screen
@@ -145,18 +127,42 @@ def main() -> int:
             if not col or col[3] == 0:
                 continue          # gradients (muzzle light, vignette) are not replayed
             x, y = int(round(op["x"])), int(round(op["y"]))
-            w, h = int(round(op["w"])), int(round(op["h"]))
-            if w <= 0 or h <= 0:
+            fw, fh = int(round(op["w"])), int(round(op["h"]))
+            if fw <= 0 or fh <= 0:
                 continue
-            if x >= W or y >= H or x + w <= 0 or y + h <= 0:
+            if x >= w or y >= h or x + fw <= 0 or y + fh <= 0:
                 continue
             alpha = op.get("alpha")
             a = 1.0 if alpha is None else max(0.0, min(1.0, float(alpha)))
             lay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             lay.paste((col[0], col[1], col[2], int(col[3] * a)),
-                      (max(0, x), max(0, y), min(W, x + w), min(H, y + h)))
+                      (max(0, x), max(0, y), min(w, x + fw), min(h, y + fh)))
             img.alpha_composite(lay)
         out.append(img)
+    return out
+
+
+def main() -> int:
+    if _stale() or "--fresh" in sys.argv:
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            print("node not found and game/frames.json is stale -- cannot render")
+            return 1
+        print("recording frames from the game...")
+        rc = subprocess.call([node, str(GAME / "smoke_test.mjs"), "--dump", str(DUMP_FRAMES)],
+                             cwd=HERE)
+        if rc != 0 or not FRAMES.exists():
+            print("failed to record frames")
+            return rc or 1
+    else:
+        print("frames.json is newer than the atlas, reusing it")
+
+    sheet, atlas = load_atlas()
+    frames = json.loads(FRAMES.read_text(encoding="utf-8"))
+
+    out = compose(frames, sheet, atlas)
 
     big = [f.resize((W * SCALE, H * SCALE), Image.Resampling.NEAREST).convert("RGB")
            for f in out]

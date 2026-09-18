@@ -84,6 +84,13 @@ its outputs are older than the modules it transitively imports, so editing one
 module costs about a third of a second rather than a full build. When a result
 surprises you, `python build.py --force` removes the cache from the question.
 
+**A scratch script in the repo root is not private.** `evaluate.py` imports every
+non-`check_`, non-underscore module it finds in order to measure it, so a throwaway
+`profile_*.py` left in the root **will be imported and executed** by the report
+step. `check_modules.py` fails the build when that happens, which is how you find
+out. If you want scratch measurements, guard them behind
+`if __name__ == "__main__"`, or put them somewhere discovery does not look.
+
 **6. Render a preview** into `assets/` so a human has something to look at. Every
 module here exposes a `main()` that does this.
 

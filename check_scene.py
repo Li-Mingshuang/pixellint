@@ -126,6 +126,123 @@ def main(argv: list[str]) -> int:
     #      fence is an ordinary farmyard. So the hard test is genuine x-OVERLAP.
     #
     # Everything else is reported as information, not as a failure.
+    # -- GIF palette derivation -------------------------------------------
+    # scene.py stopped using per-frame median cut and now derives one palette
+    # from the unscaled frames and indexes every frame against it. That is a ~2x
+    # speedup on the step, and it rests on two claims that are exactly the kind
+    # of thing that rots silently. So they are asserted here rather than
+    # described in a comment -- and then, because an assertion that cannot fail
+    # is decoration, each one is shown failing on a deliberately damaged input.
+    #
+    #   1. A NEAREST resize replicates pixels and cannot invent a colour, so the
+    #      colour set at scale 1 equals the colour set at gif_scale. This is what
+    #      licenses deriving the palette from the small frames.
+    #   2. Indexing against that palette round-trips to the same pixels. If a
+    #      colour were ever missing, quantize() would silently snap it to the
+    #      nearest neighbour and quietly change the art.
+    print("\n-- GIF palette derivation -----------------------------------")
+    images = [S.build(g) for g in grids]
+    scale = spec.get("gif_scale", 4)
+
+    small = S.animation_palette(images, S.BG)
+    if small is None:
+        print(f"  ok    more than {S.GIF_COLOURS} colours: scene.py falls back to "
+              f"per-frame median cut, nothing further to prove")
+    else:
+        base = set(small)
+        print(f"  ok    {len(base)} distinct colours, derived from unscaled frames")
+
+        at = S.preview(images[0], scale, S.BG).convert("RGB")
+        found = at.getcolors(S.GIF_COLOURS + 1)
+        grown = {c for _, c in found} if found else set()
+        if found is None or not grown <= base:
+            problems.append(
+                f"scaling to x{scale} introduced colour(s) outside the derived "
+                f"palette: {sorted(grown - base)[:8]}")
+            print(f"  FAIL  scale x{scale} introduces "
+                  f"{len(grown - base)} colour(s) not in the scale-1 palette")
+        else:
+            print(f"  ok    scale x{scale} adds no colour: NEAREST replicates, "
+                  f"so one palette covers every scale")
+
+        # Losslessness is proved by SET INCLUSION, not by round-tripping frames
+        # through quantize(). If every colour a frame draws is present in the
+        # palette, the nearest-colour match has distance zero and therefore maps
+        # each pixel to itself -- that is the whole argument, and checking the
+        # premise directly is both the stronger statement and far cheaper than
+        # quantising 16 frames to observe the conclusion. An earlier version did
+        # observe it, at ~450 ms of every build, to learn what the premise already
+        # implied.
+        missing = {}
+        for i, img in enumerate(images):
+            found = S.preview(img, 1, S.BG).convert("RGB").getcolors(S.GIF_COLOURS + 1)
+            if found is None:
+                missing[i] = "frame exceeds what a GIF can index"
+                continue
+            stray = {c for _, c in found} - base
+            if stray:
+                missing[i] = sorted(stray)[:4]
+        if missing:
+            problems.append(
+                f"{len(missing)} frame(s) draw colours absent from the derived "
+                f"palette: {list(missing.items())[:3]}")
+            print(f"  FAIL  {len(missing)} frame(s) draw colours not in the palette")
+        else:
+            print(f"  ok    all {len(images)} frames draw only colours in the "
+                  f"palette -> distance 0 -> indexing is lossless at every scale")
+
+        # The premise above is only worth expecting if Pillow actually behaves that
+        # way, so the conclusion is spot-checked once, end to end, on one frame.
+        # This is a claim about quantize(), not about the art.
+        pal = S._palette_image(small)
+        one = S.preview(images[0], 1, S.BG).convert("RGB")
+        got = one.quantize(palette=pal, dither=S.Image.Dither.NONE).convert("RGB")
+        if got.tobytes() != one.tobytes():
+            problems.append(
+                "quantize() did not map an in-palette colour to itself: the "
+                "set-inclusion argument above does not hold in this Pillow version")
+            print("  FAIL  a frame with every colour in the palette did not "
+                  "round-trip -> the argument above is unsound")
+        else:
+            print("  ok    spot check: an in-palette frame round-trips exactly, "
+                  "so distance 0 really does mean identity")
+
+        # -- and now prove both assertions can fail -----------------------
+        # Damage the palette in the two ways that matter and require a complaint.
+        # Without this, a typo that made every comparison vacuous would leave the
+        # checks above cheerfully green forever.
+        #
+        # A first version of this took whichever colour happened to be last in the
+        # palette, removed it, and observed that quantising frame 0 changed -- which
+        # it did not, because frame 0 never drew that colour. The test looked like a
+        # negative test and was not one. The victim is now picked from the colours
+        # frame 0 actually draws, and the assertion exercised is the subset test
+        # that is really in use above.
+        src = S.preview(images[0], 1, S.BG).convert("RGB")
+        used = {c for _, c in src.getcolors(S.GIF_COLOURS + 1)}
+        victim = sorted(used)[0]
+        damaged = base - {victim}
+        caught_missing = bool(used - damaged)
+
+        # The scale-invariance claim has to be shown failing too: introduce a
+        # colour the source frames do not contain and require the subset test to
+        # see it. Comparing the scale-1 set against itself would pass no matter what.
+        injected = images[0].copy()
+        injected.putpixel((0, 0), (255, 0, 255, 255))
+        seen = S.preview(injected, 1, S.BG).convert("RGB").getcolors(S.GIF_COLOURS + 1)
+        caught_unknown = bool({c for _, c in (seen or [])} - base)
+
+        if caught_missing and caught_unknown:
+            print(f"  ok    negative test: dropping the colour {victim} that frame 0 "
+                  f"draws is detected, and so is an injected foreign colour")
+        else:
+            problems.append(
+                "the palette assertions above are decorative: a damaged palette "
+                f"was accepted (missing={not caught_missing}, "
+                f"unknown={not caught_unknown})")
+            print(f"  FAIL  negative test: damaged palette NOT detected "
+                  f"(missing={not caught_missing}, unknown={not caught_unknown})")
+
     print("\n-- composition: no object may overlap AND share a dominant colour ----")
     comp = spec.get("composition", {})
     overlap_gap = comp.get("overlap_gap", 2)

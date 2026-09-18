@@ -187,6 +187,14 @@ def main() -> int:
     args = ap.parse_args()
     jobs = args.jobs or (os.cpu_count() or 4)
 
+    # Steps that stream (the report steps) inherit this process's stdout and write
+    # straight to the file descriptor, while this process buffers its own prints in
+    # userspace. Piped into a file or a pager -- which is how CI, and every timing
+    # run, reads this log -- that put the entire evaluate report AHEAD of the build
+    # log it belongs to, so the timings appeared to come after the thing they
+    # measured. Line buffering makes the parent flush per line and the order hold.
+    sys.stdout.reconfigure(line_buffering=True)
+
     t_start = time.perf_counter()
     print(f"build: {jobs} workers, incremental={'off' if args.force else 'on'}")
 
