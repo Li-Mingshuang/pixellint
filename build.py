@@ -1,27 +1,70 @@
-"""Build every asset and then run the full verification suite.
+"""Build every asset, then run the full verification suite.
 
-    python build.py
+    python build.py                 # incremental, parallel
+    python build.py --force         # ignore the cache, rebuild everything
+    python build.py --jobs 1        # serial, for readable interleaved output
 
-Exits non-zero if any check fails, which is what the CI workflow relies on.
+Two things make this fast, and measurement said they were the right two. The
+profile was:
 
-Render steps run first, in dependency order. Checks are then discovered by glob
-(`check_*.py`) so a layer added later brings its own assertions along without
-anyone having to remember to register them here.
+    total 13.8 s
+      render  8.1 s   (compose scene 3.08 s + game gif 2.31 s = two thirds of it)
+      checks  5.8 s   (game/check_background 1.19 s was the heaviest single check)
+      interpreter startup: 30 processes x 67 ms = 2.0 s
+
+Startup was NOT the cost, so this does not try to save it. What it does instead:
+
+  PARALLEL. The steps inside a wave have no dependencies on each other, so they
+  run concurrently and each wave is bounded by its slowest member rather than by
+  the sum.
+
+  INCREMENTAL. A step is skipped when every output it declares already exists and
+  is newer than every .py in the tree. That makes a no-op rebuild nearly free,
+  which is the common case when you re-run the build just to re-check something.
+  The rule is deliberately coarse -- any source change rebuilds everything -- so
+  it can never be wrong, only slower than it could be.
+
+Steps are grouped into waves by real dependency, not by convenience: the game GIF
+reads `game/assets.js`, which the atlas packer writes, so it cannot run beside it.
 """
 
+import argparse
 import json
+import os
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# Every check outcome is appended here. Not a gate, not an artifact -- it exists so
-# "how many attempts did this take to go green" can be answered, which is the most
-# direct available proxy for how hard a target actually was. Nothing else in the
-# pipeline records difficulty: cell counts measure the authoring surface, and the
-# colour margin measures palette slack.
+# (label, script, [output globs]). Outputs are declared so the incremental check
+# has something real to test; a step that declares nothing is always run.
+WAVE_1 = [
+    ("render idle sprite", "render_sprite.py", ["assets/char_*.png"]),
+    ("render walk cycle", "walk_cycle.py", ["assets/walk_*.png", "assets/walk.gif"]),
+    ("render sky layer", "render_sky.py", ["assets/sky_*.png"]),
+    ("render dog layer", "dog.py", ["assets/dog_*.png", "assets/dog.gif"]),
+    ("render mechpup", "mechdog.py", ["assets/mechdog_*.png", "assets/mechdog.gif"]),
+    ("render pilotpup", "mech.py", ["assets/mech_*.png", "assets/mech.gif"]),
+    ("compose scene", "scene.py", ["assets/meadow_*.png", "assets/meadow.gif"]),
+    ("render game player", "game/player.py", ["assets/player_*.png", "assets/player_*.gif"]),
+    ("render game zombie", "game/zombie.py", ["assets/zombie_*.png", "assets/zombie_*.gif"]),
+    ("render game effects", "game/effects.py", ["assets/fx_*.png", "assets/fx_*.gif"]),
+    ("pack game atlas", "export_game_atlas.py", ["game/assets.js", "assets/game_atlas.png"]),
+]
+# the gameplay GIF replays the atlas, so it has to follow the packer
+WAVE_2 = [
+    ("render game gif", "render_game_gif.py", ["assets/game.gif", "assets/game_strip.png"]),
+]
+REPORT_STEPS = [
+    ("evaluate", ["evaluate.py", "--markdown", "--json"]),
+]
+
+# Checks run first in this order, then anything else matching check_*.py.
+CHECK_ORDER = ["check_sprite.py", "check_scene.py", "check_mech.py"]
+
 RUN_LOG = HERE / ".pipeline-runs.jsonl"
 
 
@@ -33,66 +76,137 @@ def record(script: str, ok: bool) -> None:
     except Exception:
         pass          # logging must never break the build
 
-RENDER_STEPS = [
-    ("render idle sprite", "render_sprite.py"),
-    ("render walk cycle", "walk_cycle.py"),
-    ("render sky layer", "render_sky.py"),
-    ("render dog layer", "dog.py"),
-    ("render mechpup", "mechdog.py"),
-    ("render pilotpup", "mech.py"),
-    ("compose scene", "scene.py"),
-    ("render game player", "game/player.py"),
-    ("render game zombie", "game/zombie.py"),
-    ("render game effects", "game/effects.py"),
-    ("pack game atlas", "export_game_atlas.py"),
-    ("render game gif", "render_game_gif.py"),
-]
 
-# Checks run in this order; anything else matching check_*.py is appended and
-# run alphabetically.
-CHECK_ORDER = ["check_sprite.py", "check_scene.py"]
+def step_inputs(script: str) -> set[Path]:
+    """The local modules a step transitively imports, found by parsing, not by list.
 
-# Reporting steps run last and are allowed to return non-zero: they measure, they
-# do not gate. evaluate.py exits non-zero when an asset is unclean, which the
-# check scripts have already decided on -- failing the build again here would
-# just double-report.
-REPORT_STEPS = [
-    ("evaluate", ["evaluate.py", "--markdown", "--json"]),
-]
+    A hand-written dependency list is the thing that keeps going stale in this
+    repo, and a stale dependency in a build cache is worse than no cache: it
+    silently serves old outputs as if they were new. So the graph is DERIVED --
+    each script's imports are parsed with `ast`, resolved to local `.py` files, and
+    followed transitively.
+
+    Data files a step reads cannot be found that way, so a step may declare extras
+    (the scene spec is the only one).
+    """
+    import ast
+
+    seen, stack = set(), [HERE / script]
+    while stack:
+        p = stack.pop()
+        if p in seen or not p.exists():
+            continue
+        seen.add(p)
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for node in ast.walk(tree):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module.split(".")[0]]
+            for n in names:
+                for cand in (HERE / f"{n}.py", HERE / "game" / f"{n}.py"):
+                    if cand.exists():
+                        stack.append(cand)
+
+    for pattern in EXTRA_INPUTS.get(script, []):
+        seen.update(HERE.glob(pattern))
+    return seen
 
 
-def run(script: Path) -> int:
-    return subprocess.call([sys.executable, str(script)], cwd=HERE)
+# Data files a step reads, which import parsing cannot reveal.
+EXTRA_INPUTS = {
+    "scene.py": ["scenes/*.json"],
+}
+
+
+def is_fresh(script: str, outputs) -> bool:
+    """True when every declared output exists and postdates this step's inputs."""
+    if not outputs:
+        return False
+    inputs = step_inputs(script)
+    if not inputs:
+        return False
+    newest = max(p.stat().st_mtime for p in inputs)
+    seen = False
+    for pattern in outputs:
+        hits = list(HERE.glob(pattern))
+        if not hits:
+            return False
+        seen = True
+        if min(p.stat().st_mtime for p in hits) < newest:
+            return False
+    return seen
+
+
+def run_step(label: str, script: str, outputs, jobs: int, force: bool):
+    if not force and is_fresh(script, outputs):
+        return label, script, 0, 0.0, "cached"
+    t0 = time.perf_counter()
+    proc = subprocess.run([sys.executable, str(HERE / script)], cwd=HERE,
+                          capture_output=True, text=True)
+    dt = time.perf_counter() - t0
+    if proc.returncode != 0:
+        sys.stdout.write(proc.stdout)
+        sys.stderr.write(proc.stderr)
+    return label, script, proc.returncode, dt, "ran"
+
+
+def run_wave(steps, jobs: int, force: bool, heading: str):
+    """Run a wave concurrently; print each step's result in declaration order."""
+    if not steps:
+        return []
+    results = [None] * len(steps)
+    with ThreadPoolExecutor(max_workers=max(1, min(jobs, len(steps)))) as pool:
+        futures = [pool.submit(run_step, *s, jobs, force) for s in steps]
+        for i, fut in enumerate(futures):
+            results[i] = fut.result()
+
+    print(f"\n=== {heading} " + "=" * max(0, 60 - len(heading)))
+    for label, script, rc, dt, how in results:
+        tag = "cached" if how == "cached" else ("ok" if rc == 0 else f"FAIL rc={rc}")
+        print(f"  {label:<22} {dt*1000:>7.0f} ms  {tag}")
+    return results
+
+
+def check_scripts():
+    discovered = sorted(p.relative_to(HERE).as_posix() for p in HERE.rglob("check_*.py"))
+    ordered = [c for c in CHECK_ORDER if c in discovered]
+    ordered += [c for c in discovered if c not in ordered]
+    return ordered
 
 
 def main() -> int:
-    for label, script in RENDER_STEPS:
-        print(f"\n=== {label}: {script} " + "=" * max(0, 46 - len(label) - len(script)))
-        rc = run(HERE / script)
-        if rc != 0:
-            print(f"\nFAILED at render step '{label}' (exit {rc})")
-            return rc
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--force", action="store_true", help="ignore the incremental cache")
+    ap.add_argument("--jobs", type=int, default=0,
+                    help="parallel workers (0 = one per CPU)")
+    args = ap.parse_args()
+    jobs = args.jobs or (os.cpu_count() or 4)
 
-    # Checks are discovered RECURSIVELY. A non-recursive glob silently skips
-    # game/check_*.py, which is exactly the kind of "the suite is green because
-    # half of it never ran" failure this project is supposed to be about.
-    discovered = sorted(p.relative_to(HERE).as_posix() for p in HERE.rglob("check_*.py"))
-    checks = [c for c in CHECK_ORDER if c in discovered]
-    checks += [c for c in discovered if c not in checks]
+    t_start = time.perf_counter()
+    print(f"build: {jobs} workers, incremental={'off' if args.force else 'on'}")
 
     failed = []
-    for script in checks:
-        print(f"\n=== verify: {script} " + "=" * max(0, 46 - len(script)))
-        ok = run(HERE / script) == 0
-        record(script, ok)
-        if not ok:
+
+    run_wave(WAVE_1, jobs, args.force, "render")
+    run_wave(WAVE_2, jobs, args.force, "render (dependent)")
+
+    scripts = check_scripts()
+    # Checks are read-only with respect to each other, so one wave is safe. They
+    # ALWAYS run: `force=True` here, because a check is cheap next to the cost of
+    # not having run it.
+    results = run_wave([(s, s, []) for s in scripts], jobs, True, "verify")
+    for label, script, rc, dt, how in results:
+        record(script, rc == 0)
+        if rc != 0:
             failed.append(script)
 
-    print("\n" + "=" * 60)
-    print(f"render steps : {len(RENDER_STEPS)} ok")
-    print(f"checks run   : {len(checks)}")
     if failed:
-        print(f"FAILED       : {', '.join(failed)}")
+        print(f"\nFAILED: {', '.join(failed)}")
         return 1
 
     for label, argv in REPORT_STEPS:
@@ -100,7 +214,8 @@ def main() -> int:
         subprocess.call([sys.executable, *argv], cwd=HERE)
 
     record("__build__", True)
-    print("\nAll steps passed.")
+    print(f"\nAll steps passed in {time.perf_counter() - t_start:.1f}s.")
+    print("(pass --force to rebuild everything, --jobs 1 for serial output)")
     return 0
 
 

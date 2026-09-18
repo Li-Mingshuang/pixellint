@@ -45,8 +45,9 @@ def main() -> int:
         return 1
 
     print(f"snapshotted {len(before)} committed asset(s)")
-    print("regenerating...")
-    rc = subprocess.call([sys.executable, str(HERE / "build.py")], cwd=HERE)
+    print("regenerating (forced: an incremental build would skip the very steps"
+          " this check exists to verify)...")
+    rc = subprocess.call([sys.executable, str(HERE / "build.py"), "--force"], cwd=HERE)
     if rc != 0:
         print(f"build failed (exit {rc})")
         return rc

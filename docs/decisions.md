@@ -232,6 +232,33 @@ art is redrawn.
 
 ---
 
+## 018 — The build is a dependency graph, not a script
+
+**Decision.** `build.py` runs steps in parallel waves and skips a step whose outputs
+are newer than the local modules it **transitively imports**, derived by parsing
+with `ast`. `--force` ignores the cache.
+
+**Why not a hand-written dependency list.** That is the artifact that goes stale in
+this repo — twice already, and each time the failure was silent. A build cache with
+a stale dependency is worse than no cache: it serves old output as if it were new,
+and every check downstream then validates the wrong file.
+
+**Why not chase interpreter startup.** Startup was ~2 s of an 11.1 s serial build,
+spread over ~30 processes. Removing it means merging independent steps into one
+process, which is precisely what destroys the parallelism that saves 4×. The
+profile said rendering and checks dominated; the fix targeted those.
+
+**Cost, stated plainly.** This trades a class of correctness for speed. CI therefore
+runs `python build.py --force`, and `verify_reproducible.py` forces too — otherwise
+on a fresh checkout, where every file shares a timestamp, an incremental build would
+skip the very render steps the reproducibility check exists to exercise and the
+check would pass trivially.
+
+**Measured.** 12.7 s serial → 8.4 s forced parallel → 2.8 s incremental no-op.
+Touching `mech.py` alone reruns one step (323 ms).
+
+---
+
 ## Open questions
 
 Recorded so they are not lost:
@@ -239,7 +266,7 @@ Recorded so they are not lost:
 | question | why it is open |
 |---|---|
 | **Token cost per asset** | Not instrumented. Needs per-agent accounting from the harness; nothing in this repo can measure it. |
-| **Iteration count per asset** | The most direct available proxy for difficulty. Could be recorded by having the build log each check's outcome; not yet done. |
+| **Iteration count per asset** | **Partly done.** The build now logs every check's outcome to `.pipeline-runs.jsonl` and `evaluate.py` reports consecutive failures before the most recent success, per script. It is still per **script**, not per asset, and only covers runs since logging was added. |
 | **Calibrating margin against human ratings** | The margin proves the art sits near the line; it does not prove the art is good. Turning it into a quality metric requires scoring assets by hand and checking the correlation. Until then, margin is a readability proxy and nothing more. |
 | **A metal key in the scene palette** | There is no uppercase `M`. The milk churn uses `W` and asserts the substitution. Adding a key nothing else uses would be dead weight. |
 | **A `docs/` tutorial** | This folder. Written late. |

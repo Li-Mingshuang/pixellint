@@ -79,7 +79,10 @@ python build.py
 ```
 
 `build.py` discovers `check_*.py` **recursively**, so your checker runs in CI
-without being registered anywhere.
+without being registered anywhere. It is also incremental: a step reruns only when
+its outputs are older than the modules it transitively imports, so editing one
+module costs about a third of a second rather than a full build. When a result
+surprises you, `python build.py --force` removes the cache from the question.
 
 **6. Render a preview** into `assets/` so a human has something to look at. Every
 module here exposes a `main()` that does this.

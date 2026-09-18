@@ -248,7 +248,7 @@ you need answered before attempting a harder target.
 python evaluate.py --json --markdown
 ```
 
-It measures all 28 assets / 61 grids / **121,870 cells** / **603 adjudicated
+It measures all 46 assets / 88 grids / **161,754 cells** / **982 adjudicated
 colour pairs**, reporting per asset: cells, distinct palette keys, adjacent pairs,
 **relative margin**, warnings, hard failures, and check wall time.
 
@@ -261,30 +261,43 @@ healthy sky gradient look like it was about to fail.
 
 ### By complexity tier
 
-| tier | cells | assets | grids | cells total | keys | pairs | min margin | mean check | ms / 1k cells |
+| tier | cells | assets | frames | cells total | keys | pairs | min margin | mean check | ms / 1k cells |
 |---|---|---|---|---|---|---|---|---|---|
-| XS | ≤ 1024 | 12 | 25 | 3,762 | 13 | 66 | 0.02 | 0.6 ms | 1.96 |
-| S | ≤ 4096 | 10 | 30 | 20,508 | 15 | 470 | 0.02 | 5.1 ms | 2.51 |
-| M | ≤ 16384 | 3 | 3 | 28,480 | 9 | 49 | 0.04 | 37.4 ms | 3.94 |
-| L | ≤ 65536 | 3 | 3 | 69,120 | 6 | 18 | 0.01 | 59.1 ms | 2.57 |
+| XS | ≤ 1024 | 27 | 43 | 8,062 | 13 | 201 | 0.00 | 0.4 ms | 1.36 |
+| S | ≤ 4096 | 11 | 34 | 22,236 | 15 | 514 | 0.01 | 2.4 ms | 1.19 |
+| M | ≤ 16384 | 4 | 4 | 37,760 | 9 | 63 | 0.04 | 25.5 ms | 2.70 |
+| L | ≤ 65536 | 4 | 7 | 93,696 | 14 | 204 | 0.01 | 40.3 ms | 1.72 |
 
-Check cost is roughly **linear in cells** (2–4 ms per 1,000), which is what makes
-the pipeline viable at larger canvas sizes.
+Check cost is roughly **linear in cells** (1.2–2.7 ms per 1,000) across two orders
+of magnitude of size, which is what makes the pipeline viable at larger canvas
+sizes. The floors do not get harder as assets get bigger, so the cost that grows
+is adjudication, not difficulty.
 
 ### Generation time
 
+A forced build on 8 cores, per step:
+
 ```
-full build              11.13 s
-  render, 10 steps       5.80 s
-    game GIF             2.37 s   (headless game run + PIL frame compositing)
-    scene compose        1.52 s   (16 frames of 160x96)
-    the other 8 steps    ~1.9 s   (~230 ms each, of which ~200 ms is Python
-                                   interpreter startup)
-  checks, 12 scripts     ~5.3 s
+full build               8.4 s
+  render wave 1          2.9 s   (11 steps, parallel; longest = compose scene)
+    compose scene        2.94 s  (16 frames of 320x96)
+    render pilotpup      0.67 s
+    the other 9         ~0.45 s each
+  render wave 2          2.2 s   (game GIF: headless run + frame compositing)
+  checks, 18 scripts     ~1.6 s  (parallel; longest = check_background)
+  report                 0.3 s
 ```
 
-Roughly 2 of those 11 seconds are interpreter startup across ten separate
-processes. That is the obvious thing to fix if the build ever needs to be fast.
+The first version of this was serial and took 11.1 s. Serial arithmetic is the
+problem: those ~30 steps are mostly independent, so a serial build pays their
+**sum** where a parallel one pays only the **max of each wave**. The two long
+poles — `compose scene` and the game GIF — do not overlap, because the GIF reads
+`game/assets.js`, which the atlas packer writes.
+
+That profile is also why this does *not* chase interpreter startup. Startup is
+~2 s of the 11, spread across 30 processes, and eliminating it means merging
+independent steps into one process — which is exactly what destroys the
+parallelism that saves more. Measure first, then optimise the term that dominates.
 
 ### The finding that matters
 
@@ -363,12 +376,39 @@ The README is the argument. [`docs/`](docs/) goes deeper on the machinery:
 
 ```bash
 pip install -r requirements.txt
-python build.py          # render everything, then run every check
+python build.py          # incremental and parallel
 ```
 
-`build.py` runs the render steps in dependency order and then discovers every
-`check_*.py` by glob, so a layer added later brings its own assertions with it.
-It exits non-zero on any failure, which is what CI enforces.
+| | wall time |
+|---|---|
+| serial (`--jobs 1`) | 12.7 s |
+| parallel, forced rebuild | **~8 s** |
+| incremental, nothing changed | **2.8 s** |
+| after editing one module | only that module's steps rerun (~0.3 s) |
+
+Two things got it there, and measuring said which two. The serial build was 11.1 s,
+split roughly half rendering and half checks, with **~2 s of interpreter startup
+embedded in both** — real, but the third-largest term, so chasing it first would
+have been the wrong move. Instead:
+
+- **Parallel waves.** Steps within a wave have no dependencies on each other, so a
+  wave costs its slowest member rather than the sum of its members. The gameplay GIF
+  reads `game/assets.js`, which the atlas packer writes, so it is in its own later wave.
+- **A derived dependency graph.** A step is skipped when its outputs are newer
+  than the local modules it *transitively imports*, found by parsing with `ast`.
+  A hand-written dependency list is the thing that keeps going stale in this repo,
+  and a stale dependency in a build cache is worse than no cache: it serves old
+  output as if it were new. Data files cannot be found that way, so `scene.py`
+  declares the spec as an extra input.
+
+**CI runs `--force`.** That is not belt-and-braces: on a fresh checkout every file
+shares a timestamp, so an incremental build would skip the very render steps that
+`verify_reproducible.py` exists to verify, and the check would pass trivially.
+`verify_reproducible.py` forces the rebuild for the same reason.
+
+`build.py` runs the render steps, discovers every `check_*.py` by recursive glob,
+and ends with `REPORT_STEPS` (allowed to return non-zero — they measure, they do
+not gate).
 
 ```bash
 python scene.py                       # build scenes/meadow.json

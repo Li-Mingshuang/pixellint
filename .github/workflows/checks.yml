@@ -20,7 +20,7 @@ jobs:
         run: python -m pip install --upgrade pip pillow
 
       - name: Rebuild assets and verify every assertion
-        run: python build.py
+        run: python build.py --force
 
       - name: Confirm the committed assets reproduce pixel-for-pixel
         run: python verify_reproducible.py
