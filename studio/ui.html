@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pixellint studio</title>
+<style>
+  /* Colours are lifted from the repo's own SCENE_PALETTE so the tool and the art
+     do not look like two different projects. */
+  :root{
+    --bg:#181a22; --panel:#20232d; --panel2:#262a36; --line:#333849;
+    --ink:#dfe3ee; --dim:#8b93a7; --faint:#5c6479;
+    --ok:#6fbf73; --warn:#d8a13c; --fail:#d9614f; --run:#5a9bd8; --accent:#8d7fd8;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  button{
+    font:inherit;color:var(--ink);background:var(--panel2);
+    border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;
+  }
+  button:hover:not(:disabled){background:#30354a;border-color:#48506a}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:#2f4a6b;border-color:#3f6a99}
+  button.danger{background:#5a2c28;border-color:#8a4038}
+  button.tiny{padding:2px 7px;font-size:11px;border-radius:5px}
+  input,select,textarea{
+    font:inherit;color:var(--ink);background:#1b1e27;border:1px solid var(--line);
+    border-radius:6px;padding:6px 8px;width:100%;
+  }
+  textarea{font-family:var(--mono);font-size:12px;resize:vertical}
+  header{
+    display:flex;align-items:center;gap:10px;padding:9px 14px;
+    border-bottom:1px solid var(--line);background:var(--panel);flex:0 0 auto;
+  }
+  header h1{font-size:14px;margin:0;font-weight:600;letter-spacing:.2px}
+  header .sep{flex:1}
+  .pill{
+    font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:999px;
+    border:1px solid var(--line);color:var(--dim);white-space:nowrap;
+  }
+  .pill.run{color:var(--run);border-color:#33506e}
+  .pill.ok{color:var(--ok);border-color:#33543a}
+  .pill.fail{color:var(--fail);border-color:#6b342c}
+  main{flex:1;display:grid;grid-template-columns:290px minmax(0,1.35fr) minmax(0,1fr);
+       gap:1px;background:var(--line);overflow:hidden}
+  .col{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+  .col > .scroll{overflow:auto;padding:10px 12px}
+  h2{
+    font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--faint);
+    margin:0;padding:9px 12px 7px;border-bottom:1px solid var(--line);
+    background:var(--panel);flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  }
+  h2 .count{margin-left:auto;color:var(--dim);font-size:11px}
+  .step{
+    display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;
+    cursor:pointer;border:1px solid transparent;
+  }
+  .step:hover{background:var(--panel2)}
+  .step .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .step .dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+  .step.fresh .dot{background:var(--ok)}
+  .step.running .dot{background:var(--run);animation:pulse 1s ease-in-out infinite}
+  .step.ok .dot{background:var(--ok)}
+  .step.fail .dot{background:var(--fail)}
+  .step .tag{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  #log{
+    font-family:var(--mono);font-size:11.5px;white-space:pre-wrap;word-break:break-word;
+    margin:0;padding:10px 12px;flex:1;overflow:auto;
+  }
+  #log .l{display:block}
+  #log .FAIL{color:var(--fail);font-weight:600}
+  #log .WARN{color:var(--warn)}
+  #log .ok{color:var(--ok)}
+  #log .step-head{color:var(--accent);font-weight:600;margin-top:6px}
+  #log .meta{color:var(--faint)}
+  .problems{flex:0 0 auto;max-height:34%;border-top:1px solid var(--line);
+            background:var(--panel);overflow:auto;padding:8px 12px}
+  .problem{
+    display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:6px;
+    background:#2a2020;border:1px solid #55322c;margin-bottom:6px;
+  }
+  .problem.warn{background:#2a261c;border-color:#55492c}
+  .problem .txt{flex:1;font-family:var(--mono);font-size:11.5px;word-break:break-word}
+  .problem .acts{display:flex;gap:4px;flex:0 0 auto}
+  .empty{color:var(--faint);font-size:12px;padding:8px 0}
+  #gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:9px}
+  .shot{position:relative;background:
+      linear-gradient(45deg,#1d2029 25%,transparent 25%,transparent 75%,#1d2029 75%),
+      linear-gradient(45deg,#1d2029 25%,#232733 25%,#232733 75%,#1d2029 75%);
+      background-size:12px 12px;background-position:0 0,6px 6px;
+      border:1px solid var(--line);border-radius:6px;padding:5px;cursor:zoom-in}
+  .shot.new{border-color:var(--accent)}
+  .shot img{width:100%;display:block;image-rendering:pixelated}
+  .shot .cap{
+    font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:4px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  footer{flex:0 0 auto;border-top:1px solid var(--line);background:var(--panel);
+         padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+  .row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:3px}
+  .field label{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--faint)}
+  .field.grow{flex:1;min-width:200px}
+  .field.narrow{width:74px}
+  .field.mid{width:150px}
+  #genwrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:12px;
+           align-items:start}
+  #sprite{
+    background:#14161d;border:1px solid var(--line);border-radius:8px;
+    min-height:130px;display:flex;align-items:center;justify-content:center;
+    padding:8px;position:relative;
+  }
+  #sprite img{max-width:100%;max-height:230px;image-rendering:pixelated}
+  #sprite .hint{color:var(--faint);font-size:11px;text-align:center;padding:12px}
+  #sprite .badge{
+    position:absolute;top:7px;left:7px;font-family:var(--mono);font-size:10px;
+    background:#0009;border:1px solid var(--line);border-radius:4px;padding:1px 6px;
+    color:var(--dim);
+  }
+  #genmeta{font-family:var(--mono);font-size:11px;color:var(--dim);
+           display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+  #think{
+    font-family:var(--mono);font-size:11px;color:var(--faint);
+    max-height:82px;overflow:auto;white-space:pre-wrap;margin-top:6px;
+    border-left:2px solid var(--line);padding-left:8px;
+  }
+  #source{
+    font-family:var(--mono);font-size:11px;max-height:130px;overflow:auto;
+    background:#1b1e27;border:1px solid var(--line);border-radius:6px;
+    padding:8px;white-space:pre;margin-top:6px;
+  }
+  #lightbox{
+    position:fixed;inset:0;background:#000c;display:none;z-index:50;
+    align-items:center;justify-content:center;cursor:zoom-out;
+  }
+  #lightbox img{max-width:92vw;max-height:92vh;image-rendering:pixelated;
+                border:1px solid var(--line);background:#111}
+  .banner{
+    padding:7px 12px;background:#2a261c;border-bottom:1px solid #55492c;
+    color:var(--warn);font-size:12px;display:none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>pixellint studio</h1>
+  <span class="pill" id="jobpill">idle</span>
+  <span class="sep"></span>
+  <button id="run">Run build</button>
+  <button id="force">Force rebuild</button>
+  <button id="stop" class="danger" disabled>Stop</button>
+</header>
+
+<div class="banner" id="banner"></div>
+
+<main>
+  <!-- ── left: what can be run ─────────────────────────────────────── -->
+  <section class="col">
+    <h2>Render steps<span class="count" id="stepcount"></span></h2>
+    <div class="scroll" id="steps"></div>
+    <h2>Checks<span class="count" id="checkcount"></span></h2>
+    <div class="scroll" id="checks" style="flex:0 0 auto;max-height:34%"></div>
+  </section>
+
+  <!-- ── middle: what is happening ─────────────────────────────────── -->
+  <section class="col">
+    <h2>Live output<span class="count" id="logcount"></span></h2>
+    <pre id="log"></pre>
+    <h2>Problems<span class="count" id="probcount"></span></h2>
+    <div class="problems" id="problems">
+      <div class="empty">Nothing has failed yet.</div>
+    </div>
+  </section>
+
+  <!-- ── right: what came out ──────────────────────────────────────── -->
+  <section class="col">
+    <h2>Artifacts<span class="count" id="assetcount"></span>
+      <button class="tiny" id="reload">rescan</button></h2>
+    <div class="scroll" id="gallery"><div class="empty">Loading…</div></div>
+  </section>
+</main>
+
+<!-- ── bottom: generate ──────────────────────────────────────────────── -->
+<footer>
+  <div class="row">
+    <div class="field grow">
+      <label for="prompt">Prompt — the model writes grid rows, the studio writes the module</label>
+      <input id="prompt" placeholder="a small rusty lantern, 16x16, dark outline, one light source from the upper left">
+    </div>
+    <div class="field narrow"><label for="cols">width</label>
+      <input id="cols" type="number" value="16" min="2" max="128"></div>
+    <div class="field narrow"><label for="rows">height</label>
+      <input id="rows" type="number" value="16" min="2" max="128"></div>
+    <div class="field mid"><label for="palette">palette</label>
+      <select id="palette"><option>SCENE</option><option>GAME</option></select></div>
+    <button id="gen" class="primary">Generate</button>
+  </div>
+  <div class="row">
+    <div class="field mid"><label for="provider">provider</label>
+      <select id="provider"></select></div>
+    <div class="field mid"><label for="model">model</label>
+      <input id="model" list="modellist" placeholder="—"><datalist id="modellist"></datalist></div>
+    <div class="field grow"><label for="key">api key — kept in the server process only, never written to disk</label>
+      <input id="key" type="password" placeholder="sk-… (not needed for the offline stub)"></div>
+    <button id="savesession">Use this key</button>
+    <button id="clearsession">Clear key</button>
+  </div>
+  <div id="genwrap">
+    <div id="sprite"><div class="hint">The sprite appears here as rows arrive.<br>
+      Sequential rows, not a fake animation.</div></div>
+    <div>
+      <div id="genmeta"><span id="gm-provider">—</span></div>
+      <div id="think"></div>
+      <div id="source"></div>
+      <div class="row" id="genactions" style="margin-top:8px;display:none">
+        <div class="field mid"><label for="modname">write as</label>
+          <input id="modname" value="generated_sprite.py"></div>
+        <button id="write">Write module</button>
+        <button id="runmod">Run it</button>
+        <button id="checkmod">Check it</button>
+        <button id="revert" disabled>Revert</button>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<div id="lightbox"><img alt=""></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const api = {
+  async get(path) { const r = await fetch(path); const d = await r.json();
+                    if (!r.ok) throw new Error(d.error || r.status); return d; },
+  async post(path, body) {
+    const r = await fetch(path, { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+    return d;
+  },
+};
+
+const S = {
+  job: null, es: null, plan: null,
+  lines: 0, assets: new Map(), problems: [], source: null,
+  gridPending: null, gridBusy: false, spriteToken: 0,
+};
+
+/* ── helpers ─────────────────────────────────────────────────────────── */
+function log(text, cls) {
+  const el = document.createElement("span");
+  el.className = "l " + (cls || "");
+  el.textContent = text;
+  const box = $("log");
+  box.appendChild(el);
+  S.lines++;
+  // Cap the DOM: a forced build plus a model stream is thousands of lines, and an
+  // unbounded <pre> makes the page itself the bottleneck.
+  while (S.lines > 4000 && box.firstChild) { box.removeChild(box.firstChild); S.lines--; }
+  box.scrollTop = box.scrollHeight;
+  $("logcount").textContent = S.lines + " lines";
+}
+function setPill(text, cls) {
+  const p = $("jobpill"); p.textContent = text; p.className = "pill " + (cls || "");
+}
+function setRunning(on) {
+  $("stop").disabled = !on; $("run").disabled = on; $("force").disabled = on;
+}
+function relTime(sec) {
+  if (sec < 1) return Math.round(sec * 1000) + "ms";
+  return sec.toFixed(1) + "s";
+}
+
+/* ── plan: steps and checks ──────────────────────────────────────────── */
+function stepRow(item, kind) {
+  const el = document.createElement("div");
+  el.className = "step" + (item.fresh ? " fresh" : "");
+  el.dataset.script = item.script;
+  el.innerHTML = '<span class="dot"></span><span class="name"></span>' +
+                 '<span class="tag"></span>';
+  el.querySelector(".name").textContent = item.label;
+  el.querySelector(".tag").textContent = item.fresh ? "cached" : (kind === "check" ? "run" : "stale");
+  el.title = item.script + (kind === "check" ? "  (click to run this check)" : "  (click to run this step)");
+  el.onclick = () => runTarget(kind === "check" ? "check" : "step", item.script);
+  return el;
+}
+async function loadPlan() {
+  S.plan = await api.get("/api/plan");
+  const steps = $("steps"), checks = $("checks");
+  steps.innerHTML = ""; checks.innerHTML = "";
+  for (const s of S.plan.steps) steps.appendChild(stepRow(s, "step"));
+  for (const c of S.plan.checks) checks.appendChild(stepRow(c, "check"));
+  $("stepcount").textContent = S.plan.steps.filter(s => !s.fresh).length + " stale";
+  $("checkcount").textContent = S.plan.checks.length;
+  drawLLM();
+}
+function markStep(script, state, detail) {
+  for (const el of document.querySelectorAll(".step")) {
+    if (el.dataset.script !== script) continue;
+    el.classList.remove("fresh", "running", "ok", "fail");
+    el.classList.add(state);
+    if (detail) el.querySelector(".tag").textContent = detail;
+  }
+}
+
+/* ── problems ────────────────────────────────────────────────────────── */
+function addProblem(level, text, script) {
+  S.problems.push({ level, text, script });
+  renderProblems();
+}
+function renderProblems() {
+  const box = $("problems");
+  box.innerHTML = "";
+  $("probcount").textContent = S.problems.length ? S.problems.length : "";
+  if (!S.problems.length) {
+    box.innerHTML = '<div class="empty">Nothing has failed yet.</div>';
+    return;
+  }
+  for (const p of S.problems.slice(-40)) {
+    const el = document.createElement("div");
+    el.className = "problem " + (p.level === "warn" ? "warn" : "");
+    const txt = document.createElement("div");
+    txt.className = "txt";
+    txt.textContent = (p.level === "warn" ? "WARN  " : "FAIL  ") + p.text +
+                      (p.script ? "   [" + p.script + "]" : "");
+    const acts = document.createElement("div");
+    acts.className = "acts";
+    if (p.script) {
+      const again = document.createElement("button");
+      again.className = "tiny"; again.textContent = "rerun";
+      again.onclick = () => runTarget(p.script.startsWith("check_") ? "check" : "step", p.script);
+      acts.appendChild(again);
+      // Convention in this repo: check_X.py polices X.py. When that convention
+      // holds, offer to open it -- a failing assertion and the file that caused
+      // it should be one click apart, because that is the whole repair loop.
+      const stem = p.script.split("/").pop().replace(/^check_/, "").replace(/\.py$/, "");
+      for (const cand of [p.script.replace(/check_/, "").replace(/^game\//, "game/"),
+                          stem + ".py"]) {
+        if (!cand || cand === p.script) continue;
+        const open = document.createElement("button");
+        open.className = "tiny"; open.textContent = "open";
+        open.onclick = () => openModule(cand);
+        acts.appendChild(open);
+        break;
+      }
+    }
+    el.append(txt, acts);
+    box.appendChild(el);
+  }
+}
+
+/* ── artifacts ───────────────────────────────────────────────────────── */
+function shot(info) {
+  const el = document.createElement("div");
+  el.className = "shot new";
+  el.innerHTML = '<img alt=""><div class="cap"></div>';
+  // The version token defeats the browser's image cache, which would otherwise
+  // serve the previous GIF forever and make a regeneration look like a no-op.
+  el.querySelector("img").src = "/api/file?path=" + encodeURIComponent(info.path) +
+                                "&v=" + info.v;
+  el.querySelector(".cap").textContent = info.path.split("/").pop();
+  el.title = info.path;
+  el.onclick = () => { $("lightbox").querySelector("img").src =
+                         "/api/file?path=" + encodeURIComponent(info.path) + "&v=" + info.v;
+                       $("lightbox").style.display = "flex"; };
+  setTimeout(() => el.classList.remove("new"), 2500);
+  return el;
+}
+function pushAsset(info) {
+  const key = info.path;
+  const known = S.assets.get(key);
+  S.assets.set(key, info);
+  const gal = $("gallery");
+  const el = shot(info);
+  el.dataset.path = key;
+  if (known) {
+    const node = gal.querySelector('[data-path="' + CSS.escape(key) + '"]');
+    if (node) { node.replaceWith(el); return; }
+  }
+  if (gal.querySelector(".empty")) gal.innerHTML = "";
+  gal.prepend(el);
+  $("assetcount").textContent = S.assets.size;
+}
+async function loadAssets() {
+  const d = await api.get("/api/assets");
+  S.assets.clear();
+  const gal = $("gallery"); gal.innerHTML = "";
+  for (const a of d.assets) { S.assets.set(a.path, a); const el = shot(a);
+                              el.classList.remove("new"); el.dataset.path = a.path;
+                              gal.appendChild(el); }
+  if (!d.assets.length) gal.innerHTML = '<div class="empty">No artifacts yet.</div>';
+  $("assetcount").textContent = d.assets.length;
+}
+
+/* ── the live sprite preview ─────────────────────────────────────────── */
+function drawGrid(grid) {
+  if (!grid || !grid.rows || !grid.rows.length) return;
+  S.gridPending = grid;
+  if (S.gridBusy) return;                 // coalesce: only the newest grid matters
+  pumpGrid();
+}
+async function pumpGrid() {
+  const grid = S.gridPending;
+  if (!grid) return;
+  S.gridPending = null;
+  S.gridBusy = true;
+  const token = ++S.spriteToken;
+  try {
+    const r = await fetch("/api/render", { method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ rows: grid.rows, palette: grid.palette || $("palette").value,
+                             scale: 8 }) });
+    if (!r.ok) throw new Error("render failed");
+    const url = URL.createObjectURL(await r.blob());
+    if (token !== S.spriteToken) { URL.revokeObjectURL(url); }
+    else {
+      const box = $("sprite");
+      box.innerHTML = '<div class="badge"></div><img alt="sprite">';
+      box.querySelector("img").src = url;
+      box.querySelector(".badge").textContent =
+        grid.width + "x" + grid.height + (grid.uniform ? "" : " ragged");
+    }
+  } catch (e) { /* a failed preview must never break the stream */ }
+  S.gridBusy = false;
+  if (S.gridPending) pumpGrid();
+}
+
+/* ── the model panel ─────────────────────────────────────────────────── */
+function drawLLM() {
+  const info = S.plan.llm, sel = $("provider");
+  sel.innerHTML = "";
+  for (const p of info.providers) {
+    const o = document.createElement("option");
+    o.value = p.name;
+    o.textContent = p.name + (p.configured ? "" : " — no key");
+    if (p.name === info.active) o.selected = true;
+    sel.appendChild(o);
+  }
+  $("model").value = info.active_model || "";
+  drawModels();
+  const banner = $("banner");
+  if (info.active === "offline") {
+    banner.style.display = "block";
+    banner.textContent = "Offline stub: emits a fixed grid through the real streaming " +
+      "path — no network, no key, no cost. It exercises the same code the API path uses.";
+  } else if (!info.ready) {
+    banner.style.display = "block";
+    banner.textContent = "No key for " + info.active + ". Paste one below and press " +
+      "\"Use this key\"; it stays in the server process and is never written to disk.";
+  } else {
+    banner.style.display = "none";
+  }
+}
+function drawModels() {
+  const list = $("modellist"); list.innerHTML = "";
+  const p = (S.plan.llm.providers || []).find(x => x.name === $("provider").value);
+  for (const m of (p && p.models) || []) {
+    const o = document.createElement("option"); o.value = m; list.appendChild(o);
+  }
+}
+
+/* ── running things ──────────────────────────────────────────────────── */
+function attach(jobId, label) {
+  if (S.es) S.es.close();
+  S.job = jobId;
+  setRunning(true);
+  setPill(label + " running", "run");
+  const es = new EventSource("/api/events?job=" + jobId);
+  S.es = es;
+  es.addEventListener("start", (e) => {
+    const d = JSON.parse(e.data);
+    log("▶ " + (d.label || ""), "step-head");
+    if (d.argv) log("  " + d.argv.join(" "), "meta");
+    if (d.provider) log("  provider " + d.provider + " / " + d.model +
+                        (d.offline ? "  (offline stub)" : "") +
+                        (d.key_present ? "" : "  no key"), "meta");
+  });
+  es.addEventListener("line", (e) => {
+    const t = JSON.parse(e.data).text;
+    const m = /^\s*(FAIL|WARN)\b/.exec(t);
+    log(t, m ? m[1] : (/^\s*ok\b/.test(t) ? "ok" : ""));
+    if (m) addProblem(m[1] === "FAIL" ? "fail" : "warn", t.trim().slice(0, 400), currentScript);
+  });
+  es.addEventListener("verdict", (e) => {
+    const d = JSON.parse(e.data);
+    addProblem(d.level, d.text.slice(0, 400), currentScript);
+  });
+  es.addEventListener("asset", (e) => pushAsset(JSON.parse(e.data)));
+  es.addEventListener("content", (e) => {
+    const d = JSON.parse(e.data);
+    $("source").textContent += d.text;
+    $("source").scrollTop = $("source").scrollHeight;
+  });
+  es.addEventListener("reasoning", (e) => {
+    const d = JSON.parse(e.data);
+    $("think").textContent += d.text;
+    $("think").scrollTop = $("think").scrollHeight;
+  });
+  es.addEventListener("grid", (e) => drawGrid(JSON.parse(e.data)));
+  es.addEventListener("source", (e) => {
+    const d = JSON.parse(e.data);
+    S.source = d.python;
+    S.check = d.check;
+    $("genactions").style.display = "flex";
+    log("  module ready: " + d.grid.width + "x" + d.grid.height +
+        " palette " + (d.grid.palette || "SCENE") +
+        "  (gate written with it)", "ok");
+  });
+  es.addEventListener("error", (e) => {
+    if (!e.data) return;
+    const d = JSON.parse(e.data);
+    log("✖ " + d.message, "FAIL");
+    addProblem("fail", d.message, currentScript);
+  });
+  es.addEventListener("stopped", (e) => {
+    const d = JSON.parse(e.data);
+    log("■ stopped by you" + (d.killed ? " (process tree killed)" : ""), "WARN");
+  });
+  es.addEventListener("done", (e) => {
+    const d = JSON.parse(e.data);
+    const ok = d.rc === 0;
+    log((ok ? "✔ finished" : "✖ exit " + d.rc) + " in " + relTime(d.seconds),
+        ok ? "ok" : "FAIL");
+    if (currentScript) markStep(currentScript, ok ? "ok" : "fail", relTime(d.seconds));
+    setPill(ok ? "last run ok" : "last run failed", ok ? "ok" : "fail");
+    setRunning(false);
+    loadPlan();
+  });
+  es.addEventListener("close", () => { es.close(); setRunning(false); });
+  es.onerror = () => { /* EventSource retries on its own; the stream is the log */ };
+}
+
+let currentScript = null;
+async function runTarget(target, script, force) {
+  try {
+    const d = await api.post("/api/run", { target, script, force: !!force });
+    if (target === "build") {
+      // A new build is a new story: clear the log and the problem list rather than
+      // letting failures from the previous run sit next to a fresh one.
+      S.problems = []; renderProblems();
+      $("log").textContent = ""; S.lines = 0;
+    }
+    currentScript = target === "build" ? null : script;
+    if (script) markStep(script, "running", "…");
+    attach(d.job, target === "build" ? "build" : script);
+  } catch (e) { alert(e.message); }
+}
+async function generate() {
+  try {
+    $("source").textContent = ""; $("think").textContent = "";
+    $("sprite").innerHTML = '<div class="hint">streaming…</div>';
+    $("genactions").style.display = "none";
+    S.problems = []; renderProblems();
+    const d = await api.post("/api/generate", {
+      prompt: $("prompt").value, cols: +$("cols").value, rows: +$("rows").value,
+      palette: $("palette").value, provider: $("provider").value,
+      model: $("model").value || null,
+    });
+    currentScript = null;
+    attach(d.job, "generate");
+  } catch (e) { alert(e.message); }
+}
+
+/* ── module open / write / revert ────────────────────────────────────── */
+async function openModule(name) {
+  try {
+    const d = await api.get("/api/module?name=" + encodeURIComponent(name));
+    $("modname").value = d.name;
+    $("source").textContent = d.source;
+    S.source = d.source;
+    $("genactions").style.display = "flex";
+    $("revert").disabled = !d.dirty;
+  } catch (e) { alert(e.message); }
+}
+async function writeModule() {
+  try {
+    const d = await api.post("/api/write", { path: $("modname").value,
+                                             source: S.source, check: S.check });
+    log("wrote " + d.wrote.join(" + ") + " (" + d.bytes + " bytes)", "ok");
+    log("  build.py discovers check_*.py by glob, so the gate is live already", "meta");
+    $("revert").disabled = !d.revertable;
+    await loadPlan();
+    loadAssets();
+  } catch (e) { alert(e.message); }
+}
+async function revertModule() {
+  try {
+    const d = await api.post("/api/revert", { path: $("modname").value });
+    const parts = [];
+    if (d.reverted && d.reverted.length) parts.push("restored " + d.reverted.join(" + "));
+    if (d.deleted && d.deleted.length) parts.push("deleted " + d.deleted.join(" + "));
+    log(parts.join("; "), "ok");
+    $("revert").disabled = true;
+    await loadPlan();
+    loadAssets();
+  } catch (e) { alert(e.message); }
+}
+
+/* ── wiring ──────────────────────────────────────────────────────────── */
+$("run").onclick   = () => runTarget("build", null, false);
+$("force").onclick = () => runTarget("build", null, true);
+$("stop").onclick  = async () => { try { await api.post("/api/stop"); } catch (e) { alert(e.message); } };
+$("reload").onclick = loadAssets;
+$("gen").onclick = generate;
+$("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter") generate(); });
+$("provider").addEventListener("change", async () => {
+  const p = (S.plan.llm.providers || []).find(x => x.name === $("provider").value);
+  if (p) { $("model").value = p.model; }
+  drawModels();
+  try { S.plan.llm = await api.post("/api/llm/session", { provider: $("provider").value }); }
+  catch (e) { /* choosing a provider is not an error if it has no key yet */ }
+  drawLLM();
+});
+$("savesession").onclick = async () => {
+  try {
+    await api.post("/api/llm/session", { provider: $("provider").value,
+                                         model: $("model").value || null,
+                                         key: $("key").value || null });
+    $("key").value = "";                 // never keep it in the DOM either
+    S.plan.llm = await api.get("/api/plan").then(d => d.llm);
+    drawLLM();
+    log("session key accepted (memory only)", "ok");
+  } catch (e) { alert(e.message); }
+};
+$("clearsession").onclick = async () => {
+  S.plan.llm = await api.post("/api/llm/clear"); drawLLM();
+};
+$("write").onclick  = writeModule;
+$("revert").onclick = revertModule;
+$("runmod").onclick   = () => runTarget("step", $("modname").value);
+$("checkmod").onclick = () => runTarget("check", "check_" + $("modname").value.replace(/^.*\//, ""));
+$("lightbox").onclick = () => { $("lightbox").style.display = "none"; };
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") $("lightbox").style.display = "none";
+});
+
+(async function init() {
+  await loadPlan();
+  await loadAssets();
+  // If a build is already running (page reloaded mid-build), reattach instead of
+  // showing a stale idle state and letting the user start a second one.
+  try {
+    const cur = await api.get("/api/current");
+    if (cur.job && cur.job.running) { attach(cur.job.id, cur.job.label); }
+    else if (cur.last) { setPill(cur.last.rc === 0 ? "last run ok" : "last run failed",
+                                 cur.last.rc === 0 ? "ok" : "fail"); }
+  } catch (e) { /* first load */ }
+})();
+</script>
+</body>
+</html>

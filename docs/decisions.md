@@ -335,6 +335,71 @@ enforced.
 
 ---
 
+## 021 — The model authors the grid; the studio authors the module
+
+**Context.** `studio/` runs the pipeline in a page, streams what it is doing, and can
+halt it. It can also ask a model for a sprite.
+
+**Decision.** The model's entire output contract is quoted grid rows, one per line,
+plus an optional `PALETTE = "SCENE"`. `studio/llm.py` parses that, resolves the
+palette from this repo's own tables, and wraps the rows in the module scaffold --
+docstring, `SHIPPED`, `PALETTE`, `main()`.
+
+**Why the contract is narrow.** Asking a model for a complete Python file gives it
+three independent jobs -- get the art right, get the palette right, get the Python
+right -- and any one of them going wrong yields a module whose traceback says nothing
+about the art. Narrowing it means a hallucinating model produces an **ugly sprite,
+never an unparseable module**, and cannot substitute a palette because it never
+writes the palette line.
+
+**Nothing executes model output.** The live preview looks each character up in the
+palette table; an unknown key renders magenta so it cannot be missed. The parser
+reads strings.
+
+**The gate is generated with the art.** `check_<stem>.py` is written in the same
+request. Art that arrives unverified is the exact failure this repo exists to
+prevent, and a gate added later is a gate that never gets added. `build.py`
+discovers `check_*.py` recursively, so it starts gating immediately with nothing to
+register.
+
+**Three bugs this found in itself, all by measuring rather than reasoning:**
+
+| symptom | cause |
+|---|---|
+| the generated gate reported floating pixels at column 0 of rows 11-13 | `FRAMES` was emitted as the row list, so every check treated one ROW as a frame. `FRAMES` must be a list of frames, the shape `mech.FRAMES` and friends use. |
+| every grid silently pinned to the default palette | `re.match` anchors at position 0, and the `PALETTE` line arrives LAST. `search`, not `match`. |
+| a test asserted an unknown palette key rendered magenta; it rendered brown | it used `"Z"`, which is a real SCENE key. The absent key is now DERIVED from the palette, because a test that hard-codes a fact about the palette rots when the palette grows. |
+
+**Consequence for protocol handling.** DeepSeek's reasoner streams its chain of
+thought in `delta.reasoning_content` and its answer in `delta.content`, one non-null
+per chunk. They are kept on separate channels: reasoning is displayed dimmed, and
+only content is parsed for grid rows. Feeding both to the parser renders the model's
+deliberations as pixels.
+
+---
+
+## 022 — Halting kills the process tree, and the page binds loopback only
+
+**Decision.** `_kill_tree()` kills the process group (`taskkill /T /F` on Windows,
+`killpg` elsewhere). The server binds `127.0.0.1` and has no authentication.
+
+**Why the tree.** `render_game_gif.py` spawns node, and node is not killed by
+terminating its parent. A halt that reports success while a child keeps burning a
+core is worse than no halt, because it is a stop that lies. `check_studio.py` proves
+it with a parent that spawns a grandchild and then requires both to be gone -- a test
+that can only pass if the tree really died.
+
+**Why loopback and no auth.** The server spawns processes and writes files. Exposing
+that on a network interface would be the actual vulnerability; authentication would
+be a mitigation for a hole that does not need to exist. It is not reachable, so it is
+not authenticated, and that reasoning *is* the security model.
+
+**Also refused by construction:** two concurrent jobs (409 -- two builds write the
+same files), any script that is not a `.py` inside the repo, any path that resolves
+outside it, and a key that leaves the server process.
+
+---
+
 ## Open questions
 
 Recorded so they are not lost:
@@ -345,4 +410,5 @@ Recorded so they are not lost:
 | **Iteration count per asset** | **Partly done.** The build now logs every check's outcome to `.pipeline-runs.jsonl` and `evaluate.py` reports consecutive failures before the most recent success, per script. It is still per **script**, not per asset, and only covers runs since logging was added. |
 | **Calibrating margin against human ratings** | The margin proves the art sits near the line; it does not prove the art is good. Turning it into a quality metric requires scoring assets by hand and checking the correlation. Until then, margin is a readability proxy and nothing more. |
 | **A metal key in the scene palette** | There is no uppercase `M`. The milk churn uses `W` and asserts the substitution. Adding a key nothing else uses would be dead weight. |
+| **Cacheable checks** | `studio/check_studio.py` costs ~2.5 s and is the critical path of the verify wave, so the incremental build went 3.4 s -> 5.3 s when the studio landed. It could declare itself cacheable against its own source files, reusing decision 018's dependency graph, and CI would still force it. Not done: it is a new correctness bargain ("this check did not run") and should be taken on its merits, with its own measurement, rather than as a side effect of adding a tool. The numbers are in [studio.md](studio.md). |
 | **A `docs/` tutorial** | This folder. Written late. |

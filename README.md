@@ -370,7 +370,35 @@ The README is the argument. [`docs/`](docs/) goes deeper on the machinery:
 | [palettes.md](docs/palettes.md) | designing a palette that will not fight you (ladder first, colours second) |
 | [scenes.md](docs/scenes.md) | the scene spec, depth bands, the layout solver, the composition rule |
 | [authoring.md](docs/authoring.md) | adding a layer from scratch, and the discipline for parallel authoring agents |
+| [studio.md](docs/studio.md) | the live view: streaming, halting, editing, and wiring up a model |
 | [decisions.md](docs/decisions.md) | a log of what changed, why, and **what was reversed** |
+
+## Watching it run
+
+```bash
+python studio/server.py            # http://127.0.0.1:8777
+```
+
+A page that runs the pipeline, streams each step's output as it is produced, shows
+artifacts the moment they land, collects every `FAIL`/`WARN` with a one-click rerun,
+and can **halt a running build**. It can also ask a model for a sprite and draw it
+**as the rows arrive** -- sequential rows, not an animation.
+
+Halt kills the process **tree**, not the process: `render_game_gif.py` spawns node,
+and node survives its parent. A stop that reports success while a child keeps burning
+a core is worse than no stop, because it is a stop that lies.
+
+The model contract is deliberately narrow. The model emits quoted grid rows and
+nothing else; the studio resolves the palette from this repo's own tables, wraps the
+rows in the module scaffold, and writes the `check_*.py` **at the same time**. So a
+hallucinating model produces an ugly sprite, never an unparseable module, never a
+substituted palette, and never ungated art. Model output is never executed: the live
+preview looks characters up in the palette table and paints an unknown key magenta.
+
+No key is needed to try it -- the `offline` provider emits a real grid through the
+real streaming path. For a real model, set `DEEPSEEK_API_KEY` (or paste a key into
+the page, where it stays in the server process and is never written to disk). See
+[studio.md](docs/studio.md).
 
 ## Quick start
 

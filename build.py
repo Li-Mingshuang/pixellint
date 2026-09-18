@@ -97,24 +97,51 @@ def step_inputs(script: str) -> set[Path]:
         if p in seen or not p.exists():
             continue
         seen.add(p)
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        for node in ast.walk(tree):
-            names = []
-            if isinstance(node, ast.Import):
-                names = [a.name.split(".")[0] for a in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                names = [node.module.split(".")[0]]
-            for n in names:
-                for cand in (HERE / f"{n}.py", HERE / "game" / f"{n}.py"):
-                    if cand.exists():
-                        stack.append(cand)
+        for n in _imports_of(p):
+            for cand in (HERE / f"{n}.py", HERE / "game" / f"{n}.py"):
+                if cand.exists():
+                    stack.append(cand)
 
     for pattern in EXTRA_INPUTS.get(script, []):
         seen.update(HERE.glob(pattern))
     return seen
+
+
+_IMPORT_CACHE: dict = {}
+
+
+def _imports_of(path: Path) -> list:
+    """Top-level module names a file imports, cached against its mtime.
+
+    Parsing is the expensive half of the freshness test and the same modules are
+    reached from a dozen different steps, so without this the build re-parses
+    `pixelkit.py` once per step. Keying the cache on mtime rather than just the
+    path is what keeps it honest: an edited file gets a new mtime and is re-parsed,
+    so a stale cache entry cannot make a step look fresh when it is not.
+    """
+    import ast
+
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        return []
+    key = (str(path), stamp)
+    hit = _IMPORT_CACHE.get(key)
+    if hit is not None:
+        return hit
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except Exception:
+        _IMPORT_CACHE[key] = []
+        return []
+    names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.extend(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.append(node.module.split(".")[0])
+    _IMPORT_CACHE[key] = names
+    return names
 
 
 # Data files a step reads, which import parsing cannot reveal.
